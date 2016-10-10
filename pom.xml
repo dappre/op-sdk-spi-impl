@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+	<prerequisites>
+		<maven>3.0.0</maven>
+	</prerequisites>
+	<groupId>nl.qiy.openid-connect</groupId>
+	<artifactId>op-sdk-spi-impl</artifactId>
+	<version>0.0.12-SNAPSHOT</version>
+	<packaging>jar</packaging>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<dropwizard.version>1.0.0</dropwizard.version>
+		<mainClass>nl.qiy.demo.idp.dw.DemoIdPApp</mainClass>
+		<java.source.version>1.8</java.source.version>
+		<java.target.version>1.8</java.target.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.dropwizard</groupId>
+				<artifactId>dropwizard-bom</artifactId>
+				<version>${dropwizard.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>io.dropwizard</groupId>
+			<artifactId>dropwizard-core</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>redis.clients</groupId>
+			<artifactId>jedis</artifactId>
+			<version>2.9.0</version>
+		</dependency>
+		<dependency>
+			<groupId>nl.qiy.openid-connect</groupId>
+			<artifactId>op-sdk-lib</artifactId>
+			<version>0.0.12-SNAPSHOT</version>
+		</dependency>
+		<!-- Spock for testing (requires Groovy) -->
+		<dependency>
+			<groupId>org.spockframework</groupId>
+			<artifactId>spock-core</artifactId>
+			<version>1.0-groovy-2.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<artifactId>slf4j-api</artifactId>
+					<groupId>org.slf4j</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.3</version>
+				<configuration>
+					<source>${java.source.version}</source>
+					<target>${java.target.version}</target>
+				</configuration>
+			</plugin>
+			<!-- Groovy needed for Spock (testing) -->
+			<plugin>
+				<groupId>org.codehaus.gmavenplus</groupId>
+				<artifactId>gmavenplus-plugin</artifactId>
+				<version>1.5</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Have surefire know to run Spock (testing) -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>2.19.1</version>
+				<configuration>
+					<useFile>false</useFile>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Spec.java</include>
+						<include>**/*Spec.groovy</include>
+					</includes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-project-info-reports-plugin</artifactId>
+				<version>2.9</version>
+				<configuration>
+					<dependencyLocationsEnabled>false</dependencyLocationsEnabled>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<licenses>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+   		</license>
+	</licenses>
+
+</project>
