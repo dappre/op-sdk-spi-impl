@@ -10,6 +10,8 @@
 	<artifactId>op-sdk-spi-impl</artifactId>
 	<version>0.0.12-SNAPSHOT</version>
 	<packaging>jar</packaging>
+	<name>OpenIdConnect-Qiy : SPI implementations</name>
+	<url>https://digital-me.github.io/op-sdk-spi-impl</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,6 +20,7 @@
 		<mainClass>nl.qiy.demo.idp.dw.DemoIdPApp</mainClass>
 		<java.source.version>1.8</java.source.version>
 		<java.target.version>1.8</java.target.version>
+		<github.global.server>github</github.global.server>
 	</properties>
 
 	<dependencyManagement>
@@ -105,6 +108,7 @@
 					</includes>
 				</configuration>
 			</plugin>
+			<!-- site plugin -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-project-info-reports-plugin</artifactId>
@@ -113,6 +117,27 @@
 					<dependencyLocationsEnabled>false</dependencyLocationsEnabled>
 				</configuration>
 			</plugin>
+			<!-- push the site to GitHub -->
+			<plugin>
+				<groupId>com.github.github</groupId>
+				<artifactId>site-maven-plugin</artifactId>
+				<version>0.12</version>
+				<configuration>
+					<server>github</server>
+					<message>Creating site for ${project.version}</message>
+					<repositoryName>${project.artifactId}</repositoryName>
+					<repositoryOwner>digital-me</repositoryOwner>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>site</goal>
+						</goals>
+						<phase>site</phase>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
 
@@ -122,5 +147,23 @@
 			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
    		</license>
 	</licenses>
-
+	
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>2.10.4</version>
+				<configuration>
+					<show>public</show>
+				</configuration>
+			</plugin>
+		</plugins>
+	</reporting>
+	
+	<scm>
+		<url>https://github.com/digital-me/${project.artifactId}</url>
+		<connection>scm:git:git://github.com/digital-me/${project.artifactId}.git</connection>
+		<developerConnection>scm:git:git@github.com:digital-me/${project.artifactId}.git</developerConnection>
+	</scm>
 </project>
