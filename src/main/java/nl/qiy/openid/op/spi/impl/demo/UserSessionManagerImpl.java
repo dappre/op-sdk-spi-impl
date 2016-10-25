@@ -85,7 +85,8 @@ public class UserSessionManagerImpl implements UserSessionManager {
 
         if (userImpl == null || !input.getSubject().equals(userImpl.getSubject())) {
             userImpl = new QiyOAuthUser(input);
-            session.setAttribute(LOGGED_IN_USER, userImpl);
+            session.setAttribute(LOGGED_IN_USER, new QiyOAuthUser(input)); // set a fresh one to prevent claims from
+                                                                           // being stored
         }
 
         UserValidator uv = new UserValidator(userImpl);
