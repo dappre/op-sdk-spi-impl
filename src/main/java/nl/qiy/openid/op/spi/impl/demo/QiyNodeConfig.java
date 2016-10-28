@@ -19,17 +19,24 @@
 
 package nl.qiy.openid.op.spi.impl.demo;
 
-import java.security.KeyStore;
-import java.security.KeyStore.PrivateKeyEntry;
-import java.security.KeyStore.SecretKeyEntry;
+import java.io.File;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.Map;
+
+import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
+
+import io.dropwizard.jackson.Jackson;
 
 /**
  * Configuration that is needed to talk to the Qiy Node
@@ -42,44 +49,29 @@ public final class QiyNodeConfig {
     public final String id;
     @NotEmpty
     public final String endpoint;
+    @NotNull
+    public final PrivateKey privateKey;
+    @NotNull
+    public final PublicKey publicKey;
     @NotEmpty
-    public final String keystore;
-    @NotEmpty
-    public final char[] keystorePassPhrase;
-    @NotEmpty
-    public final char[] keyPassPhrase;
+    public final String password;
 
-    private final KeyStore.SecretKeyEntry passwordEntry;
-    private final KeyStore.PrivateKeyEntry privateKeyEntry;
 
-    @JsonCreator
-    // @formatter:off
-    public QiyNodeConfig(@JsonProperty("id") String id, 
-            @JsonProperty("endpoint") String endpoint,
-            @JsonProperty("keystore") String keystore, 
-            @JsonProperty("keystorePassPhrase") String keystorePassPhrase, 
-            @JsonProperty("keyPassPhrase") String keyPassPhrase) {// @formatter:on
+    @JsonCreator // NOSONAR
+    public QiyNodeConfig(@JsonProperty("id") String id, @JsonProperty("endpoint") String endpoint,
+            @JsonProperty("secretsFilename") String secretsFilename) throws Exception { 
         super();
         this.id = id;
         this.endpoint = endpoint;
-        this.keystore = keystore;
-        this.keystorePassPhrase = keystorePassPhrase.toCharArray(); // might throw a NPE, which is all right
-        this.keyPassPhrase = keyPassPhrase.toCharArray(); // might throw a NPE, which is all right
-        this.passwordEntry = (SecretKeyEntry) SecretStoreImpl.loadKey("nodesecret", keystore, "jceks",
-                this.keystorePassPhrase, this.keyPassPhrase);
-        this.privateKeyEntry = (PrivateKeyEntry) SecretStoreImpl.loadKey("nodekeypair", keystore, "jceks",
-                this.keystorePassPhrase, this.keyPassPhrase);
-    }
-
-    public PrivateKey getPrivateKey() {
-        return privateKeyEntry.getPrivateKey();
-    }
-
-    public String getPassword() {
-        return Base64.getEncoder().encodeToString(passwordEntry.getSecretKey().getEncoded());
-    }
-
-    public PublicKey getPublicKey() {
-        return privateKeyEntry.getCertificate().getPublicKey();
+        File secretsFile = new File(secretsFilename);
+        Map<String, String> secrets = Jackson.newObjectMapper().readValue(secretsFile, Map.class);
+        Preconditions.checkState(this.id.equals(secrets.get("id")),
+                "The id in the config file must match the id in the secrets file");
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        byte[] keyBytes = Base64.getDecoder().decode(secrets.get("privateKey"));
+        this.privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+        keyBytes = Base64.getDecoder().decode(secrets.get("publicKey"));
+        this.publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(keyBytes));
+        this.password = secrets.get("nodePassword");
     }
 }

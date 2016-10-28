@@ -8,7 +8,7 @@
 	</prerequisites>
 	<groupId>nl.qiy.openid-connect</groupId>
 	<artifactId>op-sdk-spi-impl</artifactId>
-	<version>0.0.12-SNAPSHOT</version>
+	<version>0.0.0</version>
 	<packaging>jar</packaging>
 	<name>OpenIdConnect-Qiy : SPI implementations</name>
 	<url>https://digital-me.github.io/op-sdk-spi-impl</url>
@@ -49,7 +49,7 @@
 		<dependency>
 			<groupId>nl.qiy.openid-connect</groupId>
 			<artifactId>op-sdk-lib</artifactId>
-			<version>0.0.12-SNAPSHOT</version>
+			<version>0.0.0</version>
 		</dependency>
 		<!-- Spock for testing (requires Groovy) -->
 		<dependency>

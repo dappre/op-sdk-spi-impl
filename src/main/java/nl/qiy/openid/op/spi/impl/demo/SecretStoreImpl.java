@@ -62,12 +62,12 @@ public class SecretStoreImpl implements SecretStore {
 
     @Override
     public String getNodePassword() {
-        return config.nodeConfig.getPassword();
+        return config.nodeConfig.password;
     }
 
     @Override
     public PrivateKey getNodePrivateKey() {
-        return config.nodeConfig.getPrivateKey();
+        return config.nodeConfig.privateKey;
     }
 
     @Override
