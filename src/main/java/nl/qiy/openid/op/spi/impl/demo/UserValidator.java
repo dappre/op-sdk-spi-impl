@@ -54,7 +54,6 @@ import com.google.common.base.Throwables;
 import io.dropwizard.jackson.Jackson;
 import nl.qiy.oic.op.qiy.QiyNodeClient;
 import nl.qiy.oic.op.qiy.QiyOAuthUser;
-import nl.qiy.oic.op.service.JaxrsClientService;
 
 /**
  * TODO: friso should have written a comment here to tell us what this class does
@@ -73,9 +72,9 @@ public class UserValidator implements Serializable {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserValidator.class);
     private static final ObjectWriter MAP_WRITER = Jackson.newObjectMapper().writerFor(HashMap.class);
     private static final ObjectWriter SET_WRITER = Jackson.newObjectMapper().writerFor(HashSet.class);
-    private static final Client JAXRS_CLIENT = JaxrsClientService.getClient();
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    private static Client jaxrs_client;
     private static URI dappreURI;
 
     private final QiyOAuthUser userImpl;
@@ -91,6 +90,10 @@ public class UserValidator implements Serializable {
     public UserValidator(QiyOAuthUser userImpl) {
         super();
         this.userImpl = userImpl;
+    }
+
+    public static synchronized void setJaxRsClient(Client client) {
+        jaxrs_client = client;
     }
 
     private static URI getDappreURI() {
@@ -111,7 +114,7 @@ public class UserValidator implements Serializable {
         URI pkURI = getDappreURI()
                 .resolve("cardowner/messages/key/" + shareId + "?" + (System.currentTimeMillis() / 1_000_000));
         // @formatter:off
-        Response response = JAXRS_CLIENT
+        Response response = jaxrs_client
             .target(pkURI)
             .request(MediaType.APPLICATION_JSON)
             .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(null))
@@ -170,7 +173,7 @@ public class UserValidator implements Serializable {
             byte[] data = MAP_WRITER.writeValueAsBytes(consentMessage);
             URI messagesURI = getDappreURI().resolve("cardowner/messages/");
             // @formatter:off
-            Response response = JAXRS_CLIENT
+            Response response = jaxrs_client
                 .target(messagesURI)
                 .request(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(data))
@@ -277,7 +280,7 @@ public class UserValidator implements Serializable {
             URI cardList = getDappreURI().resolve("cardowner/v2/othercards/cards");
             byte[] data = SET_WRITER.writeValueAsBytes(consentedShareIds);
             // @formatter:off
-            Response response = JAXRS_CLIENT
+            Response response = jaxrs_client
                 .target(cardList)
                 .request(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(data))

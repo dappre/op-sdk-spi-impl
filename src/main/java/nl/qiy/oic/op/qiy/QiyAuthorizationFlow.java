@@ -39,6 +39,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -127,6 +128,42 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         }
     }
 
+    private static class EventOutputCloser implements Runnable {
+        private static final Logger LOG = LoggerFactory.getLogger(EventOutputCloser.class);
+        private final EventOutput eventOutput;
+        private final String random;
+
+        /**
+         * Constructor for QiyAuthorizationFlow.EventOutputCloser
+         */
+        public EventOutputCloser(EventOutput eventOutput, String random) {
+            super();
+            this.eventOutput = eventOutput;
+            this.random = random;
+        }
+
+        @Override
+        public void run() {
+            try {
+                if (eventOutput.isClosed()) {
+                    EVENT_STREAMS.remove(random);
+                    return;
+                }
+                // else
+                OutboundEvent ping = new OutboundEvent.Builder().comment("ping").build();
+                eventOutput.write(ping);
+                STREAM_CHECK_THREAD.schedule(this, 10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                try (EventOutput eo = eventOutput) {
+                    LOG.error("Error while writing event to stream {}, removing {}", random, eo, e);
+                } catch (IOException e1) {
+                    LOG.warn("Error while closing stream in error condition. Ignoring");
+                    LOG.trace("Error", e1);
+                }
+                EVENT_STREAMS.remove(random);
+            }
+        }
+    }
 
     /**
      * {@inheritDoc}
@@ -258,30 +295,15 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     @Path("watch/{random}")
     @GET
     @Produces(SseFeature.SERVER_SENT_EVENTS)
-    @SuppressWarnings({ "ucd" })
+    @SuppressWarnings({ "ucd", "resource" })
     public static Response watchLoginStatus(@PathParam("random") String random, @Context HttpServletRequest request) {
         EventOutput eventOutput = new EventOutput();
         Optional<OAuthUser> loggedIn = OAuthUserService.getLoggedIn(request.getSession());
          if (loggedIn.isPresent()) {
             notifyUserLoggedIn(random, loggedIn.get(), null);
          } else {
-            // EVENT_STREAMS.put(random, eventOutput);
-            // Runnable r = new () -> {
-            // try {
-            // OutboundEvent ping = new OutboundEvent.Builder().comment("ping").build();
-            // eventOutput.write(ping);
-            // STREAM_CHECK_THREAD.schedule(this, 10, TimeUnit.SECONDS);
-            // } catch (Exception e) {
-            // try (EventOutput eo = eventOutput) {
-            // LOGGER.error("Error while writing event to stream {}, removing {}", random, eo, e);
-            // } catch (IOException e1) {
-            // LOGGER.warn("Error while closing stream in error condition. Ignoring");
-            // LOGGER.trace("Error", e1);
-            // }
-            // EVENT_STREAMS.remove(random);
-            // }
-            // };
-            // STREAM_CHECK_THREAD.schedule(r, 10, TimeUnit.SECONDS);
+            EVENT_STREAMS.put(random, eventOutput);
+            STREAM_CHECK_THREAD.schedule(new EventOutputCloser(eventOutput, random), 10, TimeUnit.SECONDS);
          }
         // @formatter:off
         return Response.ok()

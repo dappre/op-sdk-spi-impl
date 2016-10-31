@@ -72,9 +72,9 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
 import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.service.ConfigurationService;
-import nl.qiy.oic.op.service.JaxrsClientService;
 import nl.qiy.oic.op.service.SecretService;
 import nl.qiy.oic.op.service.spi.Configuration;
+import nl.qiy.openid.op.spi.impl.demo.UserValidator;
 
 /**
  * Handles the communication with a QiyNode
@@ -91,9 +91,9 @@ public class QiyNodeClient {
      * Standard SLF4J Logger
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyNodeClient.class);
-    private static final Client JAXRS_CLIENT = JaxrsClientService.getClient();
     private static final ObjectWriter MAP_WRITER = new ObjectMapper().writerFor(HashMap.class);
 
+    private static Client jaxrs_client = null;
     private static byte[] nodeIdBytes = null;
     private static String nodeId = null;
     private static Image qiyLogo = null;
@@ -111,6 +111,11 @@ public class QiyNodeClient {
     private QiyNodeClient(ConnectToken connectToken) {
         super();
         this.connectToken = connectToken;
+    }
+
+    public static synchronized void setJaxRsClient(Client client) {
+        jaxrs_client = client;
+        UserValidator.setJaxRsClient(client);
     }
 
     /**
@@ -163,7 +168,7 @@ public class QiyNodeClient {
         Response response;
         try {
             // @formatter:off
-            response = JAXRS_CLIENT
+            response = jaxrs_client
                 .target(target)
                 .request(MediaType.APPLICATION_JSON)
                 .header("password", SecretService.getNodePassword())
@@ -445,7 +450,7 @@ public class QiyNodeClient {
      */
     private static Response doGet(URI uri) {
         // @formatter:off
-        return JAXRS_CLIENT
+        return jaxrs_client
             .target(uri)
             .request(MediaType.APPLICATION_JSON)
             .header(HttpHeaders.AUTHORIZATION, getAuthHeader(null))
@@ -462,7 +467,7 @@ public class QiyNodeClient {
     public static void listen(Function<InboundEvent, Boolean> evtConsumer) {
         URI target = getNodeEventUri();
         // @formatter:off
-        Builder builder = JAXRS_CLIENT
+        Builder builder = jaxrs_client
                 .target(target)
                 .request()
                 .header(HttpHeaders.AUTHORIZATION, getAuthHeader(null)); // @formatter:on
