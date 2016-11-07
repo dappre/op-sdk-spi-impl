@@ -13,15 +13,16 @@ node {
     withEnv(["PATH+MAVEN=${tool 'maven'}/bin", "JAVA_HOME=${tool 'jdk1.8.0_latest'}"]) {
         stage('Get clean source') {
             deleteDir()
-            git credentialsId: '200c2dab-036b-48a3-a824-1f4257be94ff', url: 'https://github.com/digital-me/op-sdk-spi-impl.git'
+            git url: 'git@github.com:digital-me/op-sdk-spi-impl.git'
             sh "mvn clean"
         }
         
         stage ('Set new version') {
-            def currVersion=sh (script: 'tmp=\$(git tag -l  "rel-*" | cut -d\'-\' -f2- | sort -r -V | head -n1);echo \${tmp:-\'rel-0.0.12\'}', returnStdout: true).trim()
-            newVersion = nextVersion(tagPrefix, update, currVersion);
+            def currVersion=sh (script: 'tmp=\$(git tag -l  "${tagPrefix}*" | cut -d\'-\' -f2- | sort -r -V | head -n1);echo \${tmp:-\'0.0.12\'}', returnStdout: true).trim()
+            newVersion = nextVersion(update, currVersion);
             echo "current version is ${currVersion}, new version will be ${newVersion}"
-            sh "mvn -DnewVersion=$newVersion versions:set"
+            sh "mvn versions:set -DnewVersion=$newVersion"
+            sh "sed -i -e 's|<version>0.0.0</version>|<version>0.0.13</version>|' pom.xml"
         }
         
         stage('Prepare Artifactory') {
@@ -29,24 +30,18 @@ node {
             artifactoryMaven = Artifactory.newMavenBuild()
             artifactoryMaven.tool = 'maven' // Tool name from Jenkins configuration
             artifactoryMaven.deployer releaseRepo:'Qiy', snapshotRepo:'Qiy', server: server
-            artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshot', server: server
+            artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshots', server: server
         }
 
         stage('Build & Deploy') {
-            try {
-                def buildInfo = Artifactory.newBuildInfo()
-                artifactoryMaven.run pom: 'pom.xml', goals: 'install', buildInfo: buildInfo
-             } catch (e) {
-                 // TODO [FV 20161104] Send XMPP message here
-                 throw e;
-             } finally {
-                 step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
-             }
+            def buildInfo = Artifactory.newBuildInfo()
+            artifactoryMaven.run pom: 'pom.xml', goals: 'install', buildInfo: buildInfo
+            junit testResults: '**/target/surefire-reports/*.xml'
         }
 
         stage('Tag release') {   
             sh "git tag -a 'rel-${newVersion}' -m 'Release tag by Jenkins'"
-            sshagent(['200c2dab-036b-48a3-a824-1f4257be94ff']) {
+            sshagent(['ab8fd421-14d3-49a0-a429-809039ef0e1b']) {
                 sh "git remote set-url origin 'git@github.com:digital-me/op-sdk-spi-impl.git'"
                 sh "git -c core.askpass=true push origin 'rel-${newVersion}'"
             }
@@ -55,12 +50,12 @@ node {
 }
 
 @NonCPS
-def nextVersion(tagPrefix, update, currVersion) {
-//    println "${tagPrefix} - ${update} - ${currVersion}"
-    if (currVersion.length() < tagPrefix.length() + 5)  {
-        throw new IllegalArgumentException("${currVersion} is too short for prefix ${tagPrefix}")
+def nextVersion(update, currVersion) {
+//    println "${update} - ${currVersion}"
+    if (currVersion.length() < 5)  {
+        throw new IllegalArgumentException("${currVersion} is too short")
     }
-    def parts = currVersion.substring(tagPrefix.length()).split('\\.')
+    def parts = currVersion.split('\\.')
     def major = parts[0].toInteger()
     def minor = parts[1].toInteger()
     def micro = parts[2].toInteger()
