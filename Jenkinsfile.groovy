@@ -8,7 +8,7 @@ def branch='master'           // can we get this as a parameter?
 def release=true              // by default false; true if parameter
 
 def giturl="git@github.com:digital-me/${project}.git"  // NB: this is the format ssh-agent understands
-def tagPrefix='${branch}-'    // maybe: branch name?
+def tagPrefix="${branch}-"    // maybe: branch name?
 
 node {
     def newVersion=null
@@ -26,7 +26,7 @@ node {
             // sort it as version numbers, reversed
             // take the first entry
             // or 0.0.12 if nothing was found
-            def currVersion=sh (script: 'tmp=\$(git tag -l  "${tagPrefix}*" | cut -d\'-\' -f2- | sort -r -V | head -n1);echo \${tmp:-\'0.0.12\'}', returnStdout: true).trim()
+            def currVersion=sh (script: "tmp=\$(git tag -l  '${tagPrefix}*' | cut -d'-' -f2- | sort -r -V | head -n1);echo \${tmp:-'0.0.12'}", returnStdout: true).trim()
             newVersion = nextVersion(update, currVersion, release);
             echo "current version is ${currVersion}, new version will be ${newVersion}"
             sh "mvn versions:set -DnewVersion=$newVersion"
@@ -47,9 +47,11 @@ node {
         }
 
         stage('Tag release') {   
-            sh "git tag -a 'rel-${newVersion}' -m 'Release tag by Jenkins'"
-            sshagent([credid]) {
-                sh "git -c core.askpass=true push origin 'rel-${newVersion}'"
+            if (release) {
+                sh "git tag -a '${tagPrefix}${newVersion}' -m 'Release tag by Jenkins'"
+                sshagent([credid]) {
+                    sh "git -c core.askpass=true push origin '${tagPrefix}${newVersion}'"
+                }
             }
         }
     }
