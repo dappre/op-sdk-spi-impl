@@ -75,25 +75,35 @@ public final class QiyNodeConfig {
         this.endpoint = endpoint;
 
         if (Strings.isNullOrEmpty(secretsFilename)) {
+            System.out.println("secretsFilename was empty, reading from keystore");
             KeyStore.SecretKeyEntry passwordEntry = (SecretKeyEntry) SecretStoreImpl.loadKey("nodesecret", keystore,
                     "jceks", keystorePassPhrase.toCharArray(), keyPassPhrase.toCharArray());
             KeyStore.PrivateKeyEntry privateKeyEntry = (PrivateKeyEntry) SecretStoreImpl.loadKey("nodekeypair",
                     keystore, "jceks", keystorePassPhrase.toCharArray(), keyPassPhrase.toCharArray());
 
+            System.out.println("keystore entries read");
             this.privateKey = privateKeyEntry.getPrivateKey();
+            System.out.println("privatekey found");
             this.publicKey = privateKeyEntry.getCertificate().getPublicKey();
+            System.out.println("public key found");
             this.password = Base64.getEncoder().encodeToString(passwordEntry.getSecretKey().getEncoded());
+            System.out.println("password found");
         } else {
             File secretsFile = new File(secretsFilename);
+            System.out.println("Using secrets file " + secretsFile.getAbsolutePath());
             Map<String, String> secrets = Jackson.newObjectMapper().readValue(secretsFile, Map.class);
             Preconditions.checkState(this.id.equals(secrets.get("id")),
                     "The id in the config file must match the id in the secrets file");
+            System.out.println("ids match!");
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             byte[] keyBytes = Base64.getDecoder().decode(secrets.get("privateKey"));
             this.privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+            System.out.println("private key set");
             keyBytes = Base64.getDecoder().decode(secrets.get("publicKey"));
             this.publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(keyBytes));
+            System.out.println("public key set");
             this.password = secrets.get("nodePassword");
+            System.out.println("password set");
         }
     }
 }
