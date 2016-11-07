@@ -1,48 +1,54 @@
 #!/usr/bin/env groovy
 
-def update='micro'
-def branch='master'
-def release=false
-def project='op-sdk-spi-impl'
-def tagPrefix='rel-'
+def depVersion='0.0.13'       // version of the sdk-lib, on which this project depends
+def update='micro'            // needs to be set here in the source
+def project='op-sdk-spi-impl' // needs to be set here in the source
+def credid='ab8fd421-14d3-49a0-a429-809039ef0e1b' // jenkins id for deployer key for this project
+def branch='master'           // can we get this as a parameter?
+def release=true              // by default false; true if parameter
+
+def giturl="git@github.com:digital-me/${project}.git"  // NB: this is the format ssh-agent understands
+def tagPrefix='${branch}-'    // maybe: branch name?
 
 node {
-    def artifactoryMaven=null
     def newVersion=null
 
     withEnv(["PATH+MAVEN=${tool 'maven'}/bin", "JAVA_HOME=${tool 'jdk1.8.0_latest'}"]) {
         stage('Get clean source') {
             deleteDir()
-            git url: 'git@github.com:digital-me/op-sdk-spi-impl.git'
+            git url: giturl
             sh "mvn clean"
         }
         
         stage ('Set new version') {
+            // ask Git for the tags that start with the tagPrefix, 
+            // keep everything after the first dash
+            // sort it as version numbers, reversed
+            // take the first entry
+            // or 0.0.12 if nothing was found
             def currVersion=sh (script: 'tmp=\$(git tag -l  "${tagPrefix}*" | cut -d\'-\' -f2- | sort -r -V | head -n1);echo \${tmp:-\'0.0.12\'}', returnStdout: true).trim()
-            newVersion = nextVersion(update, currVersion);
+            newVersion = nextVersion(update, currVersion, release);
             echo "current version is ${currVersion}, new version will be ${newVersion}"
             sh "mvn versions:set -DnewVersion=$newVersion"
-            sh "sed -i -e 's|<version>0.0.0</version>|<version>0.0.13</version>|' pom.xml"
+            
+            // extra step 
+            sh "sed -i -e 's|<version>0.0.0</version>|<version>${depVersion}</version>|' pom.xml"
         }
         
-        stage('Prepare Artifactory') {
+        stage('Build & Deploy') {
+            def buildInfo = Artifactory.newBuildInfo()
             def server = Artifactory.server('qiy-artifactory@boxtel')
-            artifactoryMaven = Artifactory.newMavenBuild()
+            def artifactoryMaven = Artifactory.newMavenBuild()
             artifactoryMaven.tool = 'maven' // Tool name from Jenkins configuration
             artifactoryMaven.deployer releaseRepo:'Qiy', snapshotRepo:'Qiy', server: server
             artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshots', server: server
-        }
-
-        stage('Build & Deploy') {
-            def buildInfo = Artifactory.newBuildInfo()
             artifactoryMaven.run pom: 'pom.xml', goals: 'install', buildInfo: buildInfo
             junit testResults: '**/target/surefire-reports/*.xml'
         }
 
         stage('Tag release') {   
             sh "git tag -a 'rel-${newVersion}' -m 'Release tag by Jenkins'"
-            sshagent(['ab8fd421-14d3-49a0-a429-809039ef0e1b']) {
-                sh "git remote set-url origin 'git@github.com:digital-me/op-sdk-spi-impl.git'"
+            sshagent([credid]) {
                 sh "git -c core.askpass=true push origin 'rel-${newVersion}'"
             }
         }
@@ -50,7 +56,7 @@ node {
 }
 
 @NonCPS
-def nextVersion(update, currVersion) {
+def nextVersion(update, currVersion, release) {
 //    println "${update} - ${currVersion}"
     if (currVersion.length() < 5)  {
         throw new IllegalArgumentException("${currVersion} is too short")
@@ -78,6 +84,6 @@ def nextVersion(update, currVersion) {
     }
     String result = "${major}.${minor}.${micro}";
 //    println result
-    return result
+    return release ? result : "${result}-SNAPSHOT"
 }
 
