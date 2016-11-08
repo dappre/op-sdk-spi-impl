@@ -303,7 +303,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             notifyUserLoggedIn(random, loggedIn.get(), null);
          } else {
             EVENT_STREAMS.put(random, eventOutput);
-            STREAM_CHECK_THREAD.schedule(new EventOutputCloser(eventOutput, random), 10, TimeUnit.SECONDS);
+            // STREAM_CHECK_THREAD.schedule(new EventOutputCloser(eventOutput, random), 10, TimeUnit.SECONDS);
          }
         // @formatter:off
         return Response.ok()
