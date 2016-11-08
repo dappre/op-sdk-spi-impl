@@ -65,6 +65,8 @@ import org.glassfish.jersey.media.sse.SseFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Throwables;
+
 import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.api.AuthenticationResponse;
 import nl.qiy.oic.op.domain.OAuthUser;
@@ -330,46 +332,49 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     @Consumes(MediaType.APPLICATION_JSON)
     @SuppressWarnings("ucd")
     public static Response callbackFromQiyNode(@PathParam("random") String random, CallbackInput cbInput) {
-        LOGGER.debug("Callback from Qiy node invoked for random {}", random);
-        HttpSession session = TO_BE_LOGGED_IN.get(random);
-        if (session == null) {
-            String msg = "No session waits for login with id " + random;
-            LOGGER.warn(msg);
-            throw new IllegalArgumentException(msg);
-        }
-        QiyOAuthUser template = new QiyOAuthUser(cbInput);
-        OAuthUser oAuthUser = OAuthUserService.login(template, session);
-        QiyNodeClient.listen(ie -> {
-            if (ie == null) {
-                return Boolean.FALSE;
+        try {
+            LOGGER.debug("Callback from Qiy node invoked for random {}", random);
+            HttpSession session = TO_BE_LOGGED_IN.get(random);
+            if (session == null) {
+                String msg = "No session waits for login with id " + random;
+                LOGGER.warn(msg);
+                throw new IllegalArgumentException(msg);
             }
-            LOGGER.info("received event {}: {}", ie.getName(), ie.readData());
-            return Boolean.TRUE;
-        });
-        // works, but don't want it
-        if (oAuthUser == null) {
-            THREAD_POOL.execute(() -> {
-                for (int i = 0; i < 120; i++) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (Exception e) {
-                        LOGGER.warn("Error while doing ", e);
-                        throw new IllegalStateException(e);
+
+            LOGGER.info("Calling login for {}", cbInput.pid);
+            QiyOAuthUser template = new QiyOAuthUser(cbInput);
+            OAuthUser oAuthUser = OAuthUserService.login(template, session);
+
+            // works, but don't want it, look in scm history for a listen that doesn't work yet
+            if (oAuthUser == null) {
+                LOGGER.info("No user returned, submitting loop to thread pool");
+                THREAD_POOL.execute(() -> {
+                    for (int i = 0; i < 120; i++) {
+                        try {
+                            Thread.sleep(500);
+                        } catch (Exception e) {
+                            LOGGER.warn("Error while doing ", e);
+                            throw new IllegalStateException(e);
+                        }
+                        OAuthUser loggedIn = OAuthUserService.login(template, session);
+                        if (loggedIn != null) {
+                            notifyUserLoggedIn(random, loggedIn, cbInput);
+                            break;
+                        }
                     }
-                    OAuthUser loggedIn = OAuthUserService.login(template, session);
-                    if (loggedIn != null) {
-                        notifyUserLoggedIn(random, loggedIn, cbInput);
-                        break;
-                    }
-                }
-            });
-        } else {
-            notifyUserLoggedIn(random, oAuthUser, cbInput);
+                });
+            } else {
+                notifyUserLoggedIn(random, oAuthUser, cbInput);
+            }
+            return Response.ok().build();
+        } catch (Throwable t) {
+            LOGGER.warn("Error while doing callbackFromQiyNode", t);
+            throw Throwables.propagate(t);
         }
-        return Response.ok().build();
     }
 
     private static void notifyUserLoggedIn(String random, OAuthUser oAuthUser, CallbackInput cbInput) {
+        LOGGER.info("Notifying {} of login with random {}", oAuthUser.getSubject(), random, cbInput.pid);
         AuthenticationRequest request = AuthenticationRequest.fromBytes(cbInput.body);
         Response response = AuthenticationResponse.getResponse(request, oAuthUser);
         Map<String, String> body = new HashMap<>();
@@ -382,6 +387,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         notify(random, "loggedIn", body);
         // final event, so clean up
         try {
+            LOGGER.info("removing stream {}", random);
             @SuppressWarnings("resource")
             EventOutput stream = EVENT_STREAMS.get(random);
             if (stream != null) {
