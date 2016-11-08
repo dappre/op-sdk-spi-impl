@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 
-def depVersion='0.0.13-SNAPSHOT'       // version of the sdk-lib, on which this project depends
+def depVersion='0.0.13'       // version of the sdk-lib, on which this project depends
 def update='micro'            // needs to be set here in the source
 def project='op-sdk-spi-impl' // needs to be set here in the source
 def credid='ab8fd421-14d3-49a0-a429-809039ef0e1b' // jenkins id for deployer key for this project
@@ -8,7 +8,7 @@ def branch='DAP-586'          // can we get this as a parameter?
 def release=false             // by default false; true if parameter
 
 def giturl="git@github.com:digital-me/${project}.git"  // NB: this is the format ssh-agent understands
-def tagPrefix="${branch}-"    // maybe: branch name?
+def tagPrefix="master-"    // maybe: branch name?
 
 node {
     def newVersion=null
