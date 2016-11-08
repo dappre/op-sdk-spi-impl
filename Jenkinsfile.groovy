@@ -5,7 +5,7 @@ def update='micro'            // needs to be set here in the source
 def project='op-sdk-spi-impl' // needs to be set here in the source
 def credid='ab8fd421-14d3-49a0-a429-809039ef0e1b' // jenkins id for deployer key for this project
 def branch='master'           // can we get this as a parameter?
-def release=false             // by default false; true if parameter
+def release=true             // by default false; true if parameter
 
 def giturl="git@github.com:digital-me/${project}.git"  // NB: this is the format ssh-agent understands
 def tagPrefix="${branch}-"    // maybe: branch name?
