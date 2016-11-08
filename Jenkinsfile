@@ -4,8 +4,8 @@ def depVersion='0.0.13'       // version of the sdk-lib, on which this project d
 def update='micro'            // needs to be set here in the source
 def project='op-sdk-spi-impl' // needs to be set here in the source
 def credid='ab8fd421-14d3-49a0-a429-809039ef0e1b' // jenkins id for deployer key for this project
-def branch='master'           // can we get this as a parameter?
-def release=true             // by default false; true if parameter
+def branch='DAP-586'          // can we get this as a parameter?
+def release=false             // by default false; true if parameter
 
 def giturl="git@github.com:digital-me/${project}.git"  // NB: this is the format ssh-agent understands
 def tagPrefix="${branch}-"    // maybe: branch name?
@@ -33,6 +33,11 @@ node {
             
             // extra step 
             sh "sed -i -e 's|<version>0.0.0</version>|<version>${depVersion}</version>|' pom.xml"
+           
+            // def versionsGoal=release ? "versions:use-latest-releases" : "versions:use-latest-snapshots";
+            // sh "mvn versions:set ${versionsGoal} -DnewVersion=$newVersion -Dincludes='nl.qiy.*'"  
+            // maybe there will be an exotic version on a branch? In that case we might want to use: 
+            // mvn versions:use-dep-version versions:set -Dincludes="nl.qiy.openid-connect:op-sdk-lib" -DdepVersion="0.0.13" -DnewVersion="0.0.16-SNAPSHOT"
         }
         
         stage('Build & Deploy') {
