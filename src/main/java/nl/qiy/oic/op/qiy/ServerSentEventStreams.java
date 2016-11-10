@@ -18,12 +18,12 @@
  */
 package nl.qiy.oic.op.qiy;
 
-import java.io.IOException;
-import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.glassfish.jersey.media.sse.EventOutput;
 import org.glassfish.jersey.media.sse.OutboundEvent;
@@ -32,8 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.SetMultimap;
 
 import io.dropwizard.lifecycle.Managed;
 
@@ -74,11 +72,10 @@ public class ServerSentEventStreams implements Managed {
         public void run() {
             // Mark and sweep. First mark any Event output that may be closed from either end (client or server), than
             // remove all closed events from both caches
-            Set<EventOutput> removals = caller.findRemovableEventOutputs();
+            Thread.currentThread().setName("ServerSentEventStreams-heartbeat-" + System.currentTimeMillis());
+            Set<String> removals = caller.findRemovableStreamIds();
             LOG.debug("Heartbeat: about to remove {} EventOutputs", removals.size());
-            for (EventOutput eventOutput : removals) {
-                caller.remove(eventOutput);
-            }
+            removals.forEach(caller::remove);
         }
     }
 
@@ -92,36 +89,27 @@ public class ServerSentEventStreams implements Managed {
      */
     private static final ServerSentEventStreams instance = new ServerSentEventStreams();
 
-    /**
-     * Internal storage of {@link EventOutput} objects. As events are published by their streamId, keep a {@link Set} of
-     * {@link EventOutput}s. The caller can iterate over the set, which is very likely to contain only one item, to sent
-     * an event to each 'stream'.
-     */
-    private final SetMultimap<String, EventOutput> streamId2EventOutput = HashMultimap.create();
-
-    /**
-     * If something happens to a specific {@link EventOutput}, we don't know in which user's list it appeared. That's
-     * why we keep this reverse index. As the keys in this cache are unique, whereas the streamIds used in
-     * {@link #streamId2EventOutput} are not, we can use this to make sure we don't get extreme amounts of
-     * {@link EventOutput}s.
-     */
     // @formatter:off
-    private final Cache<EventOutput, String> eventOutput2StreamId = CacheBuilder
+    private final Cache<String, EventOutput> eventOutput2StreamId = CacheBuilder
             .newBuilder()
             .maximumSize(1_000_000)
             .removalListener(notification -> {
+                LOGGER.debug("streamId {} is being removed from storage", notification.getKey());
+                String key = (String) notification.getKey();
                 @SuppressWarnings("resource")
-                EventOutput key = (EventOutput) notification.getKey();
-                String value = (String) notification.getValue();
+                EventOutput value = (EventOutput) notification.getValue();
                 try {
-                    if (!key.isClosed()) {
-                        key.close();
-                        LOGGER.info("Stream {} for streamId {} closed", key.hashCode(), value);
+                    if (value == null) {
+                        LOGGER.info("null value for streamId {}", key);
+                    } else if (value.isClosed()) {
+                        LOGGER.info("Stream {} for streamId {} was already closed", value.hashCode(), key);
+                    } else {
+                        value.close();
+                        LOGGER.info("Stream {} for streamId {} closed", value.hashCode(), key);
                     }
                 } catch (Exception e) {
-                    LOGGER.warn("Error while closing EventOutput", e);
+                    LOGGER.warn("Error while closing stream {} for streamId {}", value, key, e);
                 }
-                streamId2EventOutput.get(value).remove(key);
             })
             .build();
     // @formatter:on
@@ -157,8 +145,7 @@ public class ServerSentEventStreams implements Managed {
      */
     public EventOutput newEventOutput(String streamId) {
         EventOutput eventOutput = new EventOutput();
-        streamId2EventOutput.put(streamId, eventOutput);
-        eventOutput2StreamId.put(eventOutput, streamId);
+        eventOutput2StreamId.put(streamId, eventOutput);
         LOGGER.info("Stream {} for streamId {} opened.", eventOutput.hashCode(), streamId);
         return eventOutput;
     }
@@ -171,40 +158,39 @@ public class ServerSentEventStreams implements Managed {
      * @param chunk
      *            what to write
      */
-    public void write(String streamId, OutboundEvent chunk) {
-        Set<EventOutput> result = new HashSet<>();
-        result.addAll(streamId2EventOutput.get(streamId));
-        for (EventOutput stream : result) {
-            // DOES NOT get called when client side closes the connection
-            if (stream.isClosed()) {
-                // whoever closed it, should have already removed this. Else the heart beat job will take care of
-                // removing it
-                continue;
-            }
-            // else
-            try {
-                stream.write(chunk);
-            } catch (Exception e) {
-                LOGGER.info("Write event to stream {} for streamId {} failed. Removing stream", stream.hashCode(),
-                        streamId);
-                LOGGER.trace(DUMMY_ERROR, e);
-                remove(stream);
-            }
+    @SuppressWarnings("resource")
+    public boolean write(String streamId, OutboundEvent chunk) {
+        // DOES NOT get called when client side closes the connection
+        EventOutput eventOutput = eventOutput2StreamId.getIfPresent(streamId);
+        if (eventOutput == null || eventOutput.isClosed()) {
+            // whoever closed it, should have already removed this. Else the heart beat job will take care of removing
+            // it
+            return false;
         }
+        // else
+        try {
+            eventOutput.write(chunk);
+        } catch (Exception e) {
+            LOGGER.info("Write event to stream {} for streamId {} failed. Removing stream", eventOutput.hashCode(),
+                    streamId);
+            LOGGER.trace(DUMMY_ERROR, e);
+            remove(streamId);
+        }
+        return true;
     }
 
     /**
      * @return the list of EventOutputs that this object holds a reference to that have been closed
      */
-    Set<EventOutput> findRemovableEventOutputs() {
-        Set<EventOutput> result = new HashSet<>();
-
-        for (EventOutput eventOutput : streamId2EventOutput.values()) {
-            if (isRemovable(eventOutput)) {
-                result.add(eventOutput);
-            }
-        }
-        return result;
+    Set<String> findRemovableStreamIds() {
+        // @formatter:off
+        return eventOutput2StreamId
+                .asMap()
+                .entrySet()
+                .stream()
+                .filter(e -> isRemovable(e.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet()); // @formatter:on
     }
 
     /**
@@ -242,48 +228,18 @@ public class ServerSentEventStreams implements Managed {
      * Removes an {@link EventOutput} from the internal storage. This will cause it to be closed if it was not so
      * already
      * 
-     * @param eventOutput
-     *            item to be removed
-     */
-    void remove(EventOutput eventOutput) {
-        String streamId = eventOutput2StreamId.getIfPresent(eventOutput);
-        if (streamId != null) {
-            streamId2EventOutput.remove(streamId, eventOutput);
-            // this will also close the EventOutput
-            eventOutput2StreamId.invalidate(eventOutput);
-            LOGGER.info("Stream {} for streamId {} removed", eventOutput.hashCode(), streamId);
-        } else {
-            // this should not happen
-            LOGGER.warn("Unexpected eventOutput found {}", eventOutput.hashCode());
-            if (!eventOutput.isClosed()) {
-                try {
-                    eventOutput.close();
-                    LOGGER.info("Stream {} for streamId {} closed", eventOutput.hashCode(), streamId);
-                } catch (IOException e) {
-                    LOGGER.info("Exception while cleaning up unexpected eventOutput {}", eventOutput.hashCode());
-                    LOGGER.trace(DUMMY_ERROR, e);
-                }
-            }
-        }
-    }
-
-    /**
-     * Removes all {@link EventOutput EventOutputs} from the internal storage identified by this steamId (there should
-     * at most be one)
-     * 
      * @param streamId
      *            the identifier
      */
-    public void remove(String streamId) {
-        Set<EventOutput> set = streamId2EventOutput.get(streamId);
-        for (EventOutput eventOutput : set) {
-            remove(eventOutput);
-        }
+    void remove(String streamId) {
+        // listener should take care of the rest
+        eventOutput2StreamId.invalidate(streamId);
     }
 
     @Override
     public void start() throws Exception {
         // TODO make configurable
+        heartbeatThread.execute(() -> Thread.currentThread().setName("ServerSentEventStreams-heartbeat"));
         heartbeatThread.scheduleWithFixedDelay(new ClosedEventOutputCleaner(this), 10, 10, TimeUnit.SECONDS);
         LOGGER.info("Running heartbeat every 10 s. (not configurable)");
     }
@@ -291,6 +247,7 @@ public class ServerSentEventStreams implements Managed {
     @Override
     public void stop() throws Exception {
         heartbeatThread.shutdownNow();
+        LOGGER.info("Shut down heartbeat");
     }
 
 
