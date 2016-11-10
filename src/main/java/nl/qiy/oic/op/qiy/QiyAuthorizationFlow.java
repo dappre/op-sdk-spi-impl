@@ -23,7 +23,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.URI;
@@ -38,8 +37,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -90,13 +87,12 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyAuthorizationFlow.class);
     private static final Random RANDOM = new SecureRandom();
     private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(8);
-    private static final ScheduledExecutorService STREAM_CHECK_THREAD = Executors.newScheduledThreadPool(1);
     private static QiyAuthorizationFlow instance;
+    private static ServerSentEventStreams eventStreams;
 
 
     // I suppose we should want to migrate this to Redis or something
     private static final Map<String, HttpSession> TO_BE_LOGGED_IN = new HashMap<>();
-    private static final Map<String, EventOutput> EVENT_STREAMS = new HashMap<>();
 
     private static MessageFormat pageFormat;
     private static UriBuilder notificationUriBuilder;
@@ -127,43 +123,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             // else both are non-null
             // check to see which one we generated, return that, ignore the other
             return r1;
-        }
-    }
-
-    private static class EventOutputCloser implements Runnable {
-        private static final Logger LOG = LoggerFactory.getLogger(EventOutputCloser.class);
-        private final EventOutput eventOutput;
-        private final String random;
-
-        /**
-         * Constructor for QiyAuthorizationFlow.EventOutputCloser
-         */
-        public EventOutputCloser(EventOutput eventOutput, String random) {
-            super();
-            this.eventOutput = eventOutput;
-            this.random = random;
-        }
-
-        @Override
-        public void run() {
-            try {
-                if (eventOutput.isClosed()) {
-                    EVENT_STREAMS.remove(random);
-                    return;
-                }
-                // else
-                OutboundEvent ping = new OutboundEvent.Builder().comment("ping").build();
-                eventOutput.write(ping);
-                STREAM_CHECK_THREAD.schedule(this, 10, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                try (EventOutput eo = eventOutput) {
-                    LOG.error("Error while writing event to stream {}, removing {}", random, eo, e);
-                } catch (IOException e1) {
-                    LOG.warn("Error while closing stream in error condition. Ignoring");
-                    LOG.trace("Error", e1);
-                }
-                EVENT_STREAMS.remove(random);
-            }
         }
     }
 
@@ -304,8 +263,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
          if (loggedIn.isPresent()) {
             notifyUserLoggedIn(random, loggedIn.get(), null);
          } else {
-            EVENT_STREAMS.put(random, eventOutput);
-            // STREAM_CHECK_THREAD.schedule(new EventOutputCloser(eventOutput, random), 10, TimeUnit.SECONDS);
+            eventStreams.newEventOutput(random);
          }
         // @formatter:off
         return Response.ok()
@@ -386,18 +344,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         }
         notify(random, "loggedIn", body);
         // final event, so clean up
-        try {
-            LOGGER.info("removing stream {}", random);
-            @SuppressWarnings("resource")
-            EventOutput stream = EVENT_STREAMS.get(random);
-            if (stream != null) {
-                stream.close();
-                EVENT_STREAMS.remove(random);
-            }
-        } catch (IOException e) {
-            LOGGER.warn("Error while doing notifyUserLoggedIn", e);
-            throw new UncheckedIOException(e);
-        }
+        eventStreams.remove(random);
     }
 
     private static void notify(String streamId, String eventName, Object eventData) {
@@ -408,30 +355,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
                 .mediaType(MediaType.APPLICATION_JSON_TYPE)
                 .build();
         // @formatter:on
-
-        EventOutput stream = EVENT_STREAMS.get(streamId);
-        if (stream == null) {
-            // nobody's watching
-            return;
-        }
-        // else
-        if (stream.isClosed()) {
-            EVENT_STREAMS.remove(streamId);
-            return;
-        }
-        // else
-        try {
-            LOGGER.debug("Writing chunck {}", eventName);
-            stream.write(chunk);
-        } catch (Exception e) {
-            try (EventOutput eo = stream) {
-                LOGGER.error("Error while writing event to stream {}, removing {}", streamId, stream, e);
-            } catch (IOException e1) {
-                LOGGER.warn("Error while closing stream in error condition. Ignoring");
-                LOGGER.trace("Error", e1);
-            }
-            EVENT_STREAMS.remove(streamId);
-        }
+        eventStreams.write(streamId, chunk);
     }
 
     private static String getCallbackUri(String random2) {
@@ -463,6 +387,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         if (instance == null) {
             baseDappreUrl = baseDappreURL;
             instance = new QiyAuthorizationFlow();
+            eventStreams = ServerSentEventStreams.getInstance();
         }
         return instance;
     }
