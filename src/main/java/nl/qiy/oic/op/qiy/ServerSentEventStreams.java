@@ -211,7 +211,7 @@ public class ServerSentEventStreams implements Managed {
         // EventOutput is not closed in such an occasion, the underlying TCP connection is in a state CLOSE_WAIT.
         // So we send some dummy content over the wire. If that fails we can close the event output.
         try {
-            OutboundEvent ping = new OutboundEvent.Builder().comment("ping").build();
+            OutboundEvent ping = new OutboundEvent.Builder().data("").name("ping").build();
             eventOutput.write(ping);
             LOGGER.debug("Stream {} pinged. Keeping it", eventOutput.hashCode());
             // this one looks to be in working order, keep it
