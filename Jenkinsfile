@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 
-def depVersion='0.0.13'       // version of the sdk-lib, on which this project depends
+def depVersion='0.0.15-SNAPSHOT'       // version of the sdk-lib, on which this project depends
 def update='micro'            // needs to be set here in the source
 def project='op-sdk-spi-impl' // needs to be set here in the source
 def credid='ab8fd421-14d3-49a0-a429-809039ef0e1b' // jenkins id for deployer key for this project
@@ -36,13 +36,14 @@ node {
         }
         
         stage('Build & Deploy') {
+        	def goals = 'install';
             def buildInfo = Artifactory.newBuildInfo()
             def server = Artifactory.server('qiy-artifactory@boxtel')
             def artifactoryMaven = Artifactory.newMavenBuild()
             artifactoryMaven.tool = 'maven' // Tool name from Jenkins configuration
             artifactoryMaven.deployer releaseRepo:'Qiy', snapshotRepo:'Qiy', server: server
             artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshots', server: server
-            artifactoryMaven.run pom: 'pom.xml', goals: 'install', buildInfo: buildInfo
+            artifactoryMaven.run pom: 'pom.xml', goals: goals, buildInfo: buildInfo
             junit testResults: '**/target/surefire-reports/*.xml'
         }
 

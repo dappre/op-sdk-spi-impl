@@ -16,7 +16,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<dropwizard.version>1.0.0</dropwizard.version>
+		<dropwizard.version>1.0.3</dropwizard.version>
 		<mainClass>nl.qiy.demo.idp.dw.DemoIdPApp</mainClass>
 		<java.source.version>1.8</java.source.version>
 		<java.target.version>1.8</java.target.version>
@@ -51,6 +51,24 @@
 			<artifactId>op-sdk-lib</artifactId>
 			<version>0.0.0</version>
 		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-sse</artifactId>
+		</dependency>
+
+		<!-- TODO think about making this optional/provided, needed for the QiyAuthFlow -->
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>javase</artifactId>
+			<version>3.2.1</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>jcommander</artifactId>
+					<groupId>com.beust</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
 		<!-- Spock for testing (requires Groovy) -->
 		<dependency>
 			<groupId>org.spockframework</groupId>
@@ -80,6 +98,18 @@
 					<source>${java.source.version}</source>
 					<target>${java.target.version}</target>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>1.4.4</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 			<!-- Groovy needed for Spock (testing) -->
 			<plugin>
@@ -145,9 +175,9 @@
 		<license>
 			<name>Apache License, Version 2.0</name>
 			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-   		</license>
+		</license>
 	</licenses>
-	
+
 	<reporting>
 		<plugins>
 			<plugin>
@@ -160,7 +190,7 @@
 			</plugin>
 		</plugins>
 	</reporting>
-	
+
 	<scm>
 		<url>https://github.com/digital-me/${project.artifactId}</url>
 		<connection>scm:git:git://github.com/digital-me/${project.artifactId}.git</connection>
