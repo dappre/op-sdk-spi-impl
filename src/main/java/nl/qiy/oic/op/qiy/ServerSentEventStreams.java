@@ -93,6 +93,7 @@ public class ServerSentEventStreams implements Managed {
     private final Cache<String, EventOutput> eventOutput2StreamId = CacheBuilder
             .newBuilder()
             .maximumSize(1_000_000)
+            .expireAfterWrite(30L, TimeUnit.MINUTES)
             .removalListener(notification -> {
                 LOGGER.debug("streamId {} is being removed from storage", notification.getKey());
                 String key = (String) notification.getKey();
@@ -183,6 +184,7 @@ public class ServerSentEventStreams implements Managed {
      * @return the list of EventOutputs that this object holds a reference to that have been closed
      */
     Set<String> findRemovableStreamIds() {
+        eventOutput2StreamId.cleanUp();
         // @formatter:off
         return eventOutput2StreamId
                 .asMap()
@@ -211,7 +213,7 @@ public class ServerSentEventStreams implements Managed {
         // EventOutput is not closed in such an occasion, the underlying TCP connection is in a state CLOSE_WAIT.
         // So we send some dummy content over the wire. If that fails we can close the event output.
         try {
-            OutboundEvent ping = new OutboundEvent.Builder().data("").name("ping").build();
+            OutboundEvent ping = new OutboundEvent.Builder().comment("ping").build();
             eventOutput.write(ping);
             LOGGER.debug("Stream {} pinged. Keeping it", eventOutput.hashCode());
             // this one looks to be in working order, keep it

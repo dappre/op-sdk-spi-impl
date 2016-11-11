@@ -90,7 +90,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     private static QiyAuthorizationFlow instance;
     private static ServerSentEventStreams eventStreams;
 
-
     // I suppose we should want to migrate this to Redis or something
     private static final Map<String, HttpSession> TO_BE_LOGGED_IN = new HashMap<>();
 
