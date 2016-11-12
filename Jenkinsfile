@@ -30,9 +30,12 @@ node {
             newVersion = nextVersion(update, currVersion, release);
             echo "current version is ${currVersion}, new version will be ${newVersion}"
             sh "mvn versions:set -DnewVersion=$newVersion"
+            currentBuild.displayName="#${env.BUILD_NUMBER}: ${newVersion}"
             
             // extra step 
             sh "sed -i -e 's|<version>0.0.0</version>|<version>${depVersion}</version>|' pom.xml"
+            currentBuild.description="depends on : ${depVersion}"
+            
         }
         
         stage('Build & Deploy') {
@@ -45,6 +48,7 @@ node {
             artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshots', server: server
             artifactoryMaven.run pom: 'pom.xml', goals: goals, buildInfo: buildInfo
             junit testResults: '**/target/surefire-reports/*.xml'
+            step ([$class: 'DependencyCheckPublisher'])
         }
 
         stage('Tag release') {   
