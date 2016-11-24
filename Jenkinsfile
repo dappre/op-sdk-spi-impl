@@ -49,7 +49,7 @@ node {
             artifactoryMaven.resolver releaseRepo:'libs-releases', snapshotRepo:'libs-snapshots', server: server
             artifactoryMaven.run pom: 'pom.xml', goals: goals, buildInfo: buildInfo
             junit testResults: '**/target/surefire-reports/*.xml'
-            // step ([$class: 'DependencyCheckPublisher'])
+            step ([$class: 'DependencyCheckPublisher'])
         }
 
         stage('Tag release') {   
