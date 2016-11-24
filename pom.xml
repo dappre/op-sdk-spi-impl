@@ -105,6 +105,7 @@
 				<version>1.4.4</version>
 				<configuration>
 					<format>ALL</format>
+					<suppressionFile>dependency-check-false-positives.xml</suppressionFile>
 				</configuration>
 				<executions>
 					<execution>
