@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions
+	xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.1.xsd">
+	<suppress>
+		<notes><![CDATA[
+   op-sdk-lib.jar is not OpenID, rather OpenID Connect
+   ]]></notes>
+		<gav regex="true">^nl\.qiy\.openid-connect:op-sdk-lib:.*$</gav>
+		<cpe>cpe:/a:openid:openid</cpe>
+	</suppress>
+</suppressions>
