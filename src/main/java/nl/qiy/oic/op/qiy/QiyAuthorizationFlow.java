@@ -71,6 +71,8 @@ import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.oic.op.service.OAuthUserService;
 import nl.qiy.oic.op.service.spi.AuthorizationFlow;
 import nl.qiy.oic.op.service.spi.Configuration;
+import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration;
+import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * The authorization flow that will allow the user to log in using her Qiy Node. It starts the flow by displaying a QR
@@ -304,6 +306,11 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
 
             // works, but don't want it, look in scm history for a listen that doesn't work yet
             if (oAuthUser == null) {
+                if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD) {
+                    LOGGER.warn("No logged in user found after callback {}", template.getSubject());
+                    notify(random, "error", "not logged in after callback");
+                    return Response.ok().build(); // node can't help it so answer OK to it
+                }
                 LOGGER.info("No user returned, submitting loop to thread pool");
                 THREAD_POOL.execute(() -> {
                     for (int i = 0; i < 120; i++) {

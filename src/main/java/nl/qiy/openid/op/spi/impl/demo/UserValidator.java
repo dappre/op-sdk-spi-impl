@@ -280,11 +280,14 @@ public class UserValidator implements Serializable {
      */
     private void setClaimsFromCards(Set<String> shareIds) {
         try {
-            // @formatter:off 
-            Set<String> consentedShareIds = shareIds
+            Set<String> consentedShareIds = shareIds;
+            if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption != CardLoginOption.NO_CARD) {
+                // @formatter:off
+                consentedShareIds = shareIds
                     .stream()
                     .filter(MessageDAO::hasConsent)
                     .collect(Collectors.toSet()); // @formatter:on
+            }
             if (consentedShareIds.isEmpty()) {
                 return;
             }
@@ -308,6 +311,8 @@ public class UserValidator implements Serializable {
                 Map<String, Object> unifiedCard = new HashMap<>();
                 if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption != CardLoginOption.NO_CARD) {
                     cards.forEach(unifiedCard::putAll);
+                } else {
+                    unifiedCard.put("no-user-info-requested", "by config");
                 }
                 userImpl.setClaims(unifiedCard);
             }

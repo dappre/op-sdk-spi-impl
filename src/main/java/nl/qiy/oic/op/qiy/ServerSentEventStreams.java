@@ -171,7 +171,7 @@ public class ServerSentEventStreams implements Managed {
         // else
         try {
             eventOutput.write(chunk);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOGGER.info("Write event to stream {} for streamId {} failed. Removing stream", eventOutput.hashCode(),
                     streamId);
             LOGGER.trace(DUMMY_ERROR, e);
