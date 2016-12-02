@@ -7,9 +7,9 @@ def config = [
     // build/feature specific (most likely to change)
     release: false,             // by default false; true if parameter
     depVersion: '0.0.16-DAP-633-SNAPSHOT', // version of the sdk-lib, on which this project depends
+    update: "micro",            // needs to be set here in the source
     
     // project specific settings 
-    update: "micro",            // needs to be set here in the source
     project: "op-sdk-spi-impl",      // needs to be set here in the source
     credid: "ab8fd421-14d3-49a0-a429-809039ef0e1b", // jenkins id for deployer key for this project
     
