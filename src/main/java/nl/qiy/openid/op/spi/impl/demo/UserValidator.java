@@ -54,6 +54,7 @@ import com.google.common.base.Throwables;
 import io.dropwizard.jackson.Jackson;
 import nl.qiy.oic.op.qiy.QiyNodeClient;
 import nl.qiy.oic.op.qiy.QiyOAuthUser;
+import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * TODO: friso should have written a comment here to tell us what this class does
@@ -74,12 +75,13 @@ public class UserValidator implements Serializable {
     private static final ObjectWriter SET_WRITER = Jackson.newObjectMapper().writerFor(HashSet.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static Client jaxrs_client;
+    private static Client jaxrsClient;
     private static URI dappreURI;
 
     private final QiyOAuthUser userImpl;
 
     private URI referenceUri;
+    private static byte[] welcomeMessageBytes;
 
     /**
      * Constructor for UserValidator
@@ -93,7 +95,7 @@ public class UserValidator implements Serializable {
     }
 
     public static synchronized void setJaxRsClient(Client client) {
-        jaxrs_client = client;
+        jaxrsClient = client;
     }
 
     private static URI getDappreURI() {
@@ -114,7 +116,7 @@ public class UserValidator implements Serializable {
         URI pkURI = getDappreURI()
                 .resolve("cardowner/messages/key/" + shareId + "?" + (System.currentTimeMillis() / 1_000_000));
         // @formatter:off
-        Response response = jaxrs_client
+        Response response = jaxrsClient
             .target(pkURI)
             .request(MediaType.APPLICATION_JSON)
             .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(null))
@@ -136,7 +138,7 @@ public class UserValidator implements Serializable {
             RANDOM.nextBytes(secret);
             RANDOM.nextBytes(iv);
             byte[] message = MessageCrypto
-                    .encryptSymmetric("May we use your card data? Answer 'yes' if you agree.".getBytes(), secret, iv);
+                    .encryptSymmetric(getWelcomemessagebytes(), secret, iv);
             // TODO [RB 20160808] Temporary. Once the iOS and Android clients supporting padded encryption have been
             // around for some time this should be changed to encryptAsymmetricWithPadding
             // [FV] Target: 20161201
@@ -158,37 +160,13 @@ public class UserValidator implements Serializable {
         }
     }
 
-    /**
-     * @param shareId
-     */
-    private static void requestConsent(String shareId) {
-        LOGGER.debug("requesting consent");
-        // even if this fails; don't try again
-        MessageDAO.setSent(shareId);
-        Map<String, Object> consentMessage = createConsentMessage(shareId);
-        if (consentMessage == null) {
-            return;
+    private static byte[] getWelcomemessagebytes() {
+        byte[] result = welcomeMessageBytes;
+        if (result == null) {
+            result = OpSdkSpiImplConfiguration.getInstance().welcomeMessage.getBytes();
+            welcomeMessageBytes = result;
         }
-        try {
-            byte[] data = MAP_WRITER.writeValueAsBytes(consentMessage);
-            URI messagesURI = getDappreURI().resolve("cardowner/messages/");
-            // @formatter:off
-            Response response = jaxrs_client
-                .target(messagesURI)
-                .request(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(data))
-                .post(Entity.json(consentMessage));
-            // @formatter:on
-            if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
-                LOGGER.error("No succes while posting message: {} {}", response.getStatus(),
-                        response.readEntity(String.class));
-                throw new IllegalArgumentException("Did not succeed in posting consent message");
-            }
-            // else
-        } catch (JsonProcessingException e) {
-            LOGGER.warn("Error while doing sendConsentMessage", e);
-            throw Throwables.propagate(e);
-        }
+        return result;
     }
 
     /**
@@ -248,31 +226,68 @@ public class UserValidator implements Serializable {
         // make sure the consent request is sent for each of them
         Set<String> shareIds = getShareIds();
         userImpl.setShareIds(shareIds);
-        for (String shareId : shareIds) {
-            if (!MessageDAO.isSent(shareId)) {
-                requestConsent(shareId);
+        String welcomeMessage = OpSdkSpiImplConfiguration.getInstance().welcomeMessage;
+        if (welcomeMessage != null) {
+            for (String shareId : shareIds) {
+                ensureWelcomeSent(shareId);
             }
+            processPendingMessages();
         }
-        processPendingMessages();
-        fetchCards(shareIds);
+        
+        setClaimsFromCards(shareIds);
 
-        if (OpSdkSpiImplConfiguration.getInstance().requireCard) {
-            return userImpl.getClaims() == null ? null : userImpl;
+        return userImpl.getClaims() == null ? null : userImpl;
+    }
+
+    /**
+     * @param shareId
+     */
+    private static void ensureWelcomeSent(String shareId) {
+        if (MessageDAO.isSent(shareId)) {
+            return;
         }
-        // else
-        return userImpl;
+        LOGGER.debug("requesting consent");
+        // even if this fails; don't try again
+        MessageDAO.setSent(shareId);
+        Map<String, Object> consentMessage = createConsentMessage(shareId);
+        if (consentMessage == null) {
+            return;
+        }
+        try {
+            byte[] data = MAP_WRITER.writeValueAsBytes(consentMessage);
+            URI messagesURI = getDappreURI().resolve("cardowner/messages/");
+            // @formatter:off
+            Response response = jaxrsClient
+                .target(messagesURI)
+                .request(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(data))
+                .post(Entity.json(consentMessage));
+            // @formatter:on
+            if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+                LOGGER.error("No succes while posting message: {} {}", response.getStatus(),
+                        response.readEntity(String.class));
+                throw new IllegalArgumentException("Did not succeed in posting consent message");
+            }
+            // else
+        } catch (JsonProcessingException e) {
+            LOGGER.warn("Error while doing sendConsentMessage", e);
+            throw Throwables.propagate(e);
+        }
     }
 
     /**
      * @param shareIds
      */
-    private void fetchCards(Set<String> shareIds) {
+    private void setClaimsFromCards(Set<String> shareIds) {
         try {
-            // @formatter:off 
-            Set<String> consentedShareIds = shareIds
+            Set<String> consentedShareIds = shareIds;
+            if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption != CardLoginOption.NO_CARD) {
+                // @formatter:off
+                consentedShareIds = shareIds
                     .stream()
                     .filter(MessageDAO::hasConsent)
                     .collect(Collectors.toSet()); // @formatter:on
+            }
             if (consentedShareIds.isEmpty()) {
                 return;
             }
@@ -280,7 +295,7 @@ public class UserValidator implements Serializable {
             URI cardList = getDappreURI().resolve("cardowner/v2/othercards/cards");
             byte[] data = SET_WRITER.writeValueAsBytes(consentedShareIds);
             // @formatter:off
-            Response response = jaxrs_client
+            Response response = jaxrsClient
                 .target(cardList)
                 .request(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, QiyNodeClient.getAuthHeader(data))
@@ -294,7 +309,11 @@ public class UserValidator implements Serializable {
                 }
                 // multiple cards should all have the same values for fields, so merge them
                 Map<String, Object> unifiedCard = new HashMap<>();
-                cards.forEach(unifiedCard::putAll);
+                if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption != CardLoginOption.NO_CARD) {
+                    cards.forEach(unifiedCard::putAll);
+                } else {
+                    unifiedCard.put("no-user-info-requested", "by config");
+                }
                 userImpl.setClaims(unifiedCard);
             }
         } catch (JsonProcessingException e) {

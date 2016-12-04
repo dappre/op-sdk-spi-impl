@@ -6,7 +6,7 @@
 def config = [
     // build/feature specific (most likely to change)
     release: false,             // by default false; true if parameter
-    depVersion: '0.0.16-SNAPSHOT', // version of the sdk-lib, on which this project depends
+    depVersion: '0.0.16-DAP-633-SNAPSHOT', // version of the sdk-lib, on which this project depends
     update: "micro",            // needs to be set here in the source
     
     // project specific settings 

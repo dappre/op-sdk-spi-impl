@@ -19,6 +19,8 @@
 
 package nl.qiy.openid.op.spi.impl.demo;
 
+import java.util.concurrent.TimeUnit;
+
 import javax.servlet.http.HttpSession;
 
 import org.slf4j.Logger;
@@ -26,7 +28,9 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
+import nl.qiy.oic.op.domain.IDToken;
 import nl.qiy.oic.op.domain.OAuthUser;
 import nl.qiy.oic.op.qiy.QiyOAuthUser;
 import nl.qiy.oic.op.service.spi.UserSessionManager;
@@ -44,6 +48,9 @@ public class UserSessionManagerImpl implements UserSessionManager {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(UserSessionManagerImpl.class);
     private static final String LOGGED_IN_USER = "nl.qiy.idp.LOGGED_IN_USER";
+    private static final Long BEARER_EXPIRY_SECONDS = Long.valueOf(900L);
+    private static final Cache<String, IDToken> BEARER_CACHE = CacheBuilder.newBuilder()
+            .expireAfterWrite(BEARER_EXPIRY_SECONDS, TimeUnit.SECONDS).build();
 
     @Override
     public boolean isHealthy() {
@@ -92,7 +99,6 @@ public class UserSessionManagerImpl implements UserSessionManager {
         UserValidator uv = new UserValidator(userImpl);
         userImpl = uv.getValidatedUser();
         if (userImpl == null) {
-            Preconditions.checkState(OpSdkSpiImplConfiguration.getInstance().requireCard);
             return null;
         }
 
@@ -100,5 +106,16 @@ public class UserSessionManagerImpl implements UserSessionManager {
         userImpl.resetLoginTime();
         LOGGER.debug("User {} is logged in", userImpl.getSubject());
         return userImpl;
+    }
+
+    @Override
+    public IDToken getBearer(String bearerKey) {
+        return BEARER_CACHE.getIfPresent(bearerKey);
+    }
+
+    @Override
+    public Long addBearer(String at, IDToken idt) {
+        BEARER_CACHE.put(at, idt);
+        return BEARER_EXPIRY_SECONDS;
     }
 }

@@ -39,6 +39,25 @@ import io.dropwizard.Configuration;
  * @since 9 mei 2016
  */
 public class OpSdkSpiImplConfiguration extends Configuration {
+    /**
+     * What should our status be with regards to cards? Three options:
+     * <ul>
+     * <li>We require a shared card before we say we're logged in
+     * <li>We're logged in if a card is shared, and if we've got it we'll hand out the details
+     * <li>We do require a card to be shared (this is because we can't properly delete connections within Dappre), but
+     * we do not want to give out the details on the card. This means that we do not need to ask the user's consent
+     * </ul>
+     *
+     * @author friso
+     * @since 1 dec. 2016
+     */
+    public enum CardLoginOption {
+        NO_CARD, WANT_CARD, NEED_CARD;
+
+    }
+
+    private static final String DEFAULT_WELCOME_MESSAGE = "May we use your card data? Answer 'yes' if you agree";
+
     @NotNull
     public final QRConfig qrConfig;
     @NotNull
@@ -63,7 +82,9 @@ public class OpSdkSpiImplConfiguration extends Configuration {
     public final Map<String, Map<String, JWKConfig>> jwkConfigs;
     @NotNull
     public URL dappreBaseURI;
-    public boolean requireCard = true;
+    public final CardLoginOption cardLoginOption;
+
+    public final String welcomeMessage;
 
     @NotNull
     public JedisConfiguration jedisConfiguration;
@@ -82,7 +103,8 @@ public class OpSdkSpiImplConfiguration extends Configuration {
             @JsonProperty("iss") String iss,
             @JsonProperty("jwkConfigs") Map<String, Map<String, JWKConfig>> jwkConfigs,
             @JsonProperty("cardMsgUri") String cardMsgUri,
-            @JsonProperty("requireCard") Boolean requireCard,
+            @JsonProperty("cardLoginOption") String cardLoginOption,
+            @JsonProperty("welcomeMessage") String welcomeMessage,
             @JsonProperty("jedisConfiguration") JedisConfiguration jedisConfiguration) {
         // @formatter:on
         super();
@@ -95,10 +117,16 @@ public class OpSdkSpiImplConfiguration extends Configuration {
         this.iss = iss;
         this.jwkConfigs = jwkConfigs;
         this.cardMsgUri = cardMsgUri;
-        this.requireCard = requireCard == null ? Boolean.TRUE : requireCard;
+        this.cardLoginOption = cardLoginOption == null ? CardLoginOption.NO_CARD
+                : CardLoginOption.valueOf(cardLoginOption);
         this.jedisConfiguration = jedisConfiguration == null
                 ? new JedisConfiguration(null, null, null, null, null, null, null, null)
                 : jedisConfiguration;
+        if (this.cardLoginOption == CardLoginOption.NO_CARD && welcomeMessage == null) {
+            this.welcomeMessage = null;
+        } else {
+            this.welcomeMessage = welcomeMessage == null ? DEFAULT_WELCOME_MESSAGE : welcomeMessage;
+        }
     }
 
     public static void setInstance(OpSdkSpiImplConfiguration inst) {

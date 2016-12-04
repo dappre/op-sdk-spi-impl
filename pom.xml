@@ -107,13 +107,6 @@
 					<format>ALL</format>
 					<suppressionFile>dependency-check-false-positives.xml</suppressionFile>
 				</configuration>
-				<executions>
-					<execution>
-						<goals>
-							<goal>check</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
 			<!-- Groovy needed for Spock (testing) -->
 			<plugin>
