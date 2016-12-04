@@ -5,7 +5,7 @@
 
 def config = [
     // build/feature specific (most likely to change)
-    release: true,             // by default false; true if parameter
+    release: false,             // by default false; true if parameter
     depVersion: '0.0.16', // version of the sdk-lib, on which this project depends
     update: "micro",            // needs to be set here in the source
     
