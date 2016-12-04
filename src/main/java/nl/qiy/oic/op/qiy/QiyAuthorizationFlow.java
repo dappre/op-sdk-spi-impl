@@ -259,12 +259,12 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     @Produces(SseFeature.SERVER_SENT_EVENTS)
     @SuppressWarnings({ "ucd", "resource" })
     public static Response watchLoginStatus(@PathParam("random") String random, @Context HttpServletRequest request) {
-        EventOutput eventOutput = new EventOutput();
+        EventOutput eventOutput = null;
         Optional<OAuthUser> loggedIn = OAuthUserService.getLoggedIn(request.getSession());
          if (loggedIn.isPresent()) {
             notifyUserLoggedIn(random, loggedIn.get(), null);
          } else {
-            eventStreams.newEventOutput(random);
+            eventOutput = eventStreams.newEventOutput(random);
          }
         // @formatter:off
         return Response.ok()
