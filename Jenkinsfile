@@ -5,8 +5,8 @@
 
 def config = [
     // build/feature specific (most likely to change)
-    release: false,             // by default false; true if parameter
-    depVersion: '0.0.16-DAP-633-SNAPSHOT', // version of the sdk-lib, on which this project depends
+    release: true,             // by default false; true if parameter
+    depVersion: '0.0.16', // version of the sdk-lib, on which this project depends
     update: "micro",            // needs to be set here in the source
     
     // project specific settings 
@@ -44,7 +44,7 @@ def tagRelease(script, config) {
         if (config['release']) {
             def ver = "${config['branch']}-${config['newVersion']}"
             script.sh "git tag -a '${ver}' -m 'Release tag by Jenkins'"
-            script.sshagent([script.credid]) {
+            script.sshagent([config['credid']]) {
                 script.sh "git -c core.askpass=true push origin '${ver}'"
             }
         }
