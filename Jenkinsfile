@@ -9,7 +9,7 @@ node {
         stage ("Build") {
             getCleanSource(config);
             updateMvnVersionFromGitTag(config);
-            // updateNlMvnDependencies(config);
+            updateNlMvnDependencies(config);
             buildAndDeploy(config);
             // tagRelease(this, config);
         }
