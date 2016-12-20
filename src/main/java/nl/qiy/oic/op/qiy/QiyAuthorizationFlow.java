@@ -19,18 +19,12 @@
 
 package nl.qiy.oic.op.qiy;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
 import java.security.SecureRandom;
-import java.text.MessageFormat;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -38,7 +32,6 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BinaryOperator;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.servlet.http.HttpServletRequest;
@@ -95,7 +88,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     // I suppose we should want to migrate this to Redis or something
     private static final Map<String, HttpSession> TO_BE_LOGGED_IN = new HashMap<>();
 
-    private static MessageFormat pageFormat;
     private static UriBuilder notificationUriBuilder;
     private static UriBuilder callbackUriBuilder;
 
@@ -144,18 +136,8 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
 
         Map<String, Object> callbackDef = getCallbackDefinition(inputs, random);
         QiyNodeClient client = QiyNodeClient.registerCallback(inputs, callbackDef, baseDappreUrl);
-        String qrCode = Base64.getEncoder().encodeToString(client.connectTokenAsQRCode());
-        String qrJson = client.connectTokenAsJson();
-        String dappreConnectUri = client.connectTokenAsDappreLink();
-
-        URI notificationURL = getNotificationUrl(random);
-        MessageFormat format = getPageFormat();
-        Object[] args = { qrCode, qrJson, notificationURL, dappreConnectUri };
-        String page = format.format(args);
-
-        // FIXME optionally return another media type (JSON) here
-
-        return Response.ok(page, MediaType.TEXT_HTML).build();
+        URI notificationUri = getNotificationUrl(random);
+        return Response.ok(new QiyConnectTokenRepresentation(client, notificationUri)).build();
     }
 
     /**
@@ -207,21 +189,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             notificationUriBuilder = tmp;
         }
         return notificationUriBuilder.build(sRandom);
-    }
-
-    private MessageFormat getPageFormat() {
-        if (pageFormat == null) {
-            LOGGER.info("reading login page format {}", this.getClass().getResource("/loginPageFormat.html"));
-            try (Reader sr = new InputStreamReader(this.getClass().getResourceAsStream("/loginPageFormat.html"));
-                    BufferedReader reader = new BufferedReader(sr)) {
-                MessageFormat mf = new MessageFormat(reader.lines().collect(Collectors.joining("\n")));
-                pageFormat = mf; // NOSONAR
-            } catch (IOException e) {
-                LOGGER.warn("Error while doing getPageFormat", e);
-                throw new IllegalStateException("illegal page format");
-            }
-        }
-        return pageFormat;
     }
 
     @Override
