@@ -36,6 +36,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +75,8 @@ import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.oic.op.service.SecretService;
 import nl.qiy.oic.op.service.spi.Configuration;
+import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration;
+import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
 import nl.qiy.openid.op.spi.impl.demo.UserValidator;
 
 /**
@@ -92,6 +95,7 @@ public class QiyNodeClient {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyNodeClient.class);
     private static final ObjectWriter MAP_WRITER = new ObjectMapper().writerFor(HashMap.class);
+    private static Map<String, Object> cardShareData = null;
 
     private static Client jaxrs_client = null;
     private static byte[] nodeIdBytes = null;
@@ -134,28 +138,7 @@ public class QiyNodeClient {
      */
     static QiyNodeClient registerCallback(AuthenticationRequest inputs, Map<String, Object> callbackDef,
             URL dappreBaseUrl) {
-        Map<String, Object> data = new HashMap<>();
-        URI cardMsgURI = null;
-        try {
-            cardMsgURI = dappreBaseUrl.toURI().resolve("cardowner/cardmsg");
-        } catch (URISyntaxException e) {
-            LOGGER.error("Error while doing registerCallback", e);
-            throw new IllegalStateException("Please check your configuration");
-        }
-
-        if (cardMsgURI != null) {
-            Response cardMsgResponse = doGet(cardMsgURI);
-            // @formatter:on
-            if (cardMsgResponse.getStatusInfo().getFamily() == Status.Family.SUCCESSFUL) {
-                data = cardMsgResponse.readEntity(HashMap.class);
-            } else {
-                LOGGER.error("error {} ({}) while invoking: {} . Continuing", cardMsgResponse.getStatus(),
-                        cardMsgResponse.getStatusInfo(), cardMsgURI);
-            }
-        } else {
-            LOGGER.debug("no cardMsgURI set, so only logging in");
-        }
-
+        Map<String, Object> data = getCardShareData(dappreBaseUrl);
         data.put("callback", callbackDef);
         byte[] databytes;
         try {
@@ -188,6 +171,45 @@ public class QiyNodeClient {
         throw new IllegalStateException(
                 "Error " + response.getStatus() + " while requesting connect token from " + target);
 
+    }
+
+    /**
+     * As the "card message" will not change, we might as well cache it. Store it as an UnmodifiableMap, from that
+     * create a modifiable copy of the values and return that
+     * 
+     * @param dappreBaseUrl
+     *            from the config
+     * @return see description
+     */
+    static Map<String, Object> getCardShareData(URL dappreBaseUrl) {
+        if (cardShareData == null) {
+            Map<String, Object> data = new HashMap<>();
+            URI cardMsgURI = null;
+            try {
+                boolean oneWay = OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD;
+                cardMsgURI = dappreBaseUrl.toURI().resolve("cardowner/cardmsg?oneWay=" + oneWay);
+            } catch (URISyntaxException e) {
+                LOGGER.error("Error while doing registerCallback", e);
+                throw new IllegalStateException("Please check your configuration");
+            }
+
+            if (cardMsgURI != null) {
+                Response cardMsgResponse = doGet(cardMsgURI);
+                // @formatter:on
+                if (cardMsgResponse.getStatusInfo().getFamily() == Status.Family.SUCCESSFUL) {
+                    data = cardMsgResponse.readEntity(HashMap.class);
+                } else {
+                    LOGGER.error("error {} ({}) while invoking: {} . Continuing", cardMsgResponse.getStatus(),
+                            cardMsgResponse.getStatusInfo(), cardMsgURI);
+                }
+            } else {
+                LOGGER.debug("no cardMsgURI set, so only logging in");
+            }
+            cardShareData = Collections.unmodifiableMap(data);
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.putAll(cardShareData);
+        return result;
     }
 
     public static String getAuthHeader(byte[] data) {

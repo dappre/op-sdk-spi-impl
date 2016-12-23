@@ -309,6 +309,8 @@ public class UserValidator implements Serializable {
                 }
                 // multiple cards should all have the same values for fields, so merge them
                 Map<String, Object> unifiedCard = new HashMap<>();
+                // TODO [FV 20161223] this is superfluous; with the change I'm about to commit, the info should not be
+                // coming if we did't want it. Consider moving this "if" and always do the cards.foreach route
                 if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption != CardLoginOption.NO_CARD) {
                     cards.forEach(unifiedCard::putAll);
                 } else {
