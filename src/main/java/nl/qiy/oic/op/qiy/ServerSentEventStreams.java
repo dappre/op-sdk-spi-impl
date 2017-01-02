@@ -160,24 +160,23 @@ public class ServerSentEventStreams implements Managed {
      *            what to write
      */
     @SuppressWarnings("resource")
-    public boolean write(String streamId, OutboundEvent chunk) {
+    public void write(String streamId, OutboundEvent chunk) {
         // DOES NOT get called when client side closes the connection
         EventOutput eventOutput = eventOutput2StreamId.getIfPresent(streamId);
         if (eventOutput == null || eventOutput.isClosed()) {
             // whoever closed it, should have already removed this. Else the heart beat job will take care of removing
             // it
-            return false;
+            return;
         }
         // else
         try {
             eventOutput.write(chunk);
-        } catch (Throwable e) {
+        } catch (Throwable e) { // NOSONAR, I actually want to catch everything here
             LOGGER.info("Write event to stream {} for streamId {} failed. Removing stream", eventOutput.hashCode(),
                     streamId);
             LOGGER.trace(DUMMY_ERROR, e);
             remove(streamId);
         }
-        return true;
     }
 
     /**

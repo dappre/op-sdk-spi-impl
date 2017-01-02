@@ -51,8 +51,8 @@ public class QiyOAuthUser implements OAuthUser {
     private final CallbackInput cbInput;
     private final Set<String> shareIds = new HashSet<>();
 
-    private Instant loginTime = Instant.MIN;
-    private StandardClaims claims;
+    private long loginTime = Instant.MIN.toEpochMilli();
+    private transient StandardClaims claims;
 
     /**
      * Creates a template user
@@ -78,7 +78,7 @@ public class QiyOAuthUser implements OAuthUser {
 
     @Override
     public Instant getLoginTime() {
-        return loginTime;
+        return Instant.ofEpochMilli(loginTime);
     }
 
     /**
@@ -86,7 +86,7 @@ public class QiyOAuthUser implements OAuthUser {
      */
     public void resetLoginTime() {
         LOGGER.debug("Resetting login time for user {}", cbInput.pid);
-        loginTime = Instant.now();
+        loginTime = Instant.now().toEpochMilli();
     }
 
     @Override

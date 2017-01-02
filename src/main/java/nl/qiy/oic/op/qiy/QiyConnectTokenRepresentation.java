@@ -65,6 +65,9 @@ public class QiyConnectTokenRepresentation {
      * Constructor for QiyConnectTokenRepresentation
      * 
      * @param client
+     *            a client that has been instantiated, so that it can give us the connect token in several formats
+     * @param notificationUri
+     *            the uri where notification of change of the status of the connect token will be given
      */
     public QiyConnectTokenRepresentation(QiyNodeClient client, URI notificationUri) {
         super();
