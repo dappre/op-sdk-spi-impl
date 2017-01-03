@@ -274,8 +274,30 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             // works, but don't want it, look in scm history for a listen that doesn't work yet
             if (oAuthUser == null) {
                 if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD) {
-                    LOGGER.warn("No logged in user found after callback {}", template.getSubject());
-                    notify(random, "error", "not logged in after callback");
+                    LOGGER.info(
+                            "No logged in user found after callback {}, card message may be in transit, waiting a sec",
+                            template.getSubject());
+                    // TODO [FV 20170103] refactor this
+                    THREAD_POOL.execute(() -> {
+                        OAuthUser loggedIn = null;
+                        for (int i = 0; i < 3; i++) {
+                            try {
+                                Thread.sleep(500);
+                            } catch (Exception e) {
+                                LOGGER.warn("Error while doing ", e);
+                                throw new IllegalStateException(e);
+                            }
+                            loggedIn = OAuthUserService.login(template, session);
+                            if (loggedIn != null) {
+                                notifyUserLoggedIn(random, loggedIn, cbInput);
+                                break;
+                            }
+                        }
+                        if (loggedIn == null) {
+                            LOGGER.warn("No logged in user found after callback {}", template.getSubject());
+                            notify(random, "error", "not logged in after callback");
+                        }
+                    });
                     return Response.ok().build(); // node can't help it so answer OK to it
                 }
                 LOGGER.info("No user returned, submitting loop to thread pool");

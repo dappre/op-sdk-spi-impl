@@ -51,7 +51,7 @@ public class QiyOAuthUser implements OAuthUser {
     private final CallbackInput cbInput;
     private final Set<String> shareIds = new HashSet<>();
 
-    private long loginTime = Instant.MIN.toEpochMilli();
+    private long loginTime = 0L;
     private transient StandardClaims claims;
 
     /**

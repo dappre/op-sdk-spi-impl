@@ -19,15 +19,15 @@ node {
             echo "Building maven project and deploying to Artifactory"
             buildMvnAndDeploy(config);
             echo "Done build stage"
-            
-            // stash
+        }
+    }
+    if (release) {
+        stage ("Tag") {
+            echo "Starting tagging"
+            tagGit(config);
+            // TODO [FV 20170103] Deploy to public artifatory
         }
     }
 }
 
-if (release) {
-    stage ("Tag") {
-        echo "Starting tagging"
-        tagGit(config);
-    }
-}
+
