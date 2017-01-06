@@ -21,8 +21,10 @@ package nl.qiy.oic.op.qiy;
 
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -55,6 +57,11 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.Response.Status.Family;
 
+import org.apache.batik.transcoder.SVGAbstractTranscoder;
+import org.apache.batik.transcoder.TranscoderException;
+import org.apache.batik.transcoder.TranscoderInput;
+import org.apache.batik.transcoder.TranscoderOutput;
+import org.apache.batik.transcoder.image.PNGTranscoder;
 import org.glassfish.jersey.media.sse.EventInput;
 import org.glassfish.jersey.media.sse.InboundEvent;
 import org.slf4j.Logger;
@@ -63,6 +70,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.base.Preconditions;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.MultiFormatWriter;
@@ -77,6 +85,7 @@ import nl.qiy.oic.op.service.SecretService;
 import nl.qiy.oic.op.service.spi.Configuration;
 import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration;
 import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
+import nl.qiy.openid.op.spi.impl.demo.QRConfig;
 import nl.qiy.openid.op.spi.impl.demo.UserValidator;
 
 /**
@@ -291,15 +300,21 @@ public class QiyNodeClient {
         if (connectToken == null) {
             throw new IllegalStateException(NO_CT_SET);
         }
+        QRConfig qrConfig = OpSdkSpiImplConfiguration.getInstance().qrConfig;
+
         BitMatrix encode = stringToBitMatrix(connectToken.toJSON());
         BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(encode);
+
         Image logo = qiyLogo();
-        int x = (bufferedImage.getWidth() / 2) - (logo.getWidth(null) / 2);
-        int y = (bufferedImage.getHeight() / 2) - (logo.getHeight(null) / 2);
-        bufferedImage.getGraphics().drawImage(logo, x, y, null);
+        int x = (qrConfig.width / 2) - (logo.getWidth(null) / 2);
+        int y = (qrConfig.height / 2) - (logo.getHeight(null) / 2);
+
+        BufferedImage combined = new BufferedImage(qrConfig.width, qrConfig.height, BufferedImage.TYPE_INT_ARGB);
+        combined.getGraphics().drawImage(bufferedImage, 0, 0, null);
+        combined.getGraphics().drawImage(logo, x, y, null);
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            ImageIO.write(bufferedImage, "png", baos);
+            ImageIO.write(combined, "png", baos);
             return baos.toByteArray();
         } catch (IOException e) {
             LOGGER.error("Error while doing connectTokenAsQRCode", e);
@@ -315,29 +330,95 @@ public class QiyNodeClient {
      */
     public static Image qiyLogo() {
         if (qiyLogo == null) {
-            try {
-                Image image = ImageIO.read(QiyNodeClient.class.getResource("/qiyLogo.png"));
-                Map<String, Object> qrConfig = ConfigurationService.get(Configuration.QR_CONFIG);
-                // There was a calculation here, based on the errorCorrection level, the surface of the image and the
-                // possible error surface, but that didn't work too well. The logo isn't square and the QR code is.
-                // Besides that the QR code might not have a 'black' pixel in the corner, but a white band around it,
-                // which makes the QR surface smaller than the image surface.
-                //
-                // Configuring the thing is way easier (for now)
-                Integer width = (Integer) qrConfig.get("logoWidth");
-                Integer height = (Integer) qrConfig.get("logoHeight");
-                if (width != null && height != null) {
-                    LOGGER.debug("rescaling qiyLogo from {} x {} to {} x {}", image.getWidth(null),
-                            image.getHeight(null), width, height);
-                    image = image.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-                }
-                qiyLogo = image;
-            } catch (IOException e) {
-                LOGGER.warn("Error while reading qiyLogo: {}", e.getMessage());
-                throw new UncheckedIOException(e);
+            QRConfig qrConfig = OpSdkSpiImplConfiguration.getInstance().qrConfig;
+            Preconditions.checkNotNull(qrConfig, "QRConfig has not been set");
+            Preconditions.checkNotNull(qrConfig.width, "QRConfig has no width");
+            Preconditions.checkNotNull(qrConfig.height, "QRConfig has no height");
+            
+            double surface = (double) qrConfig.width * qrConfig.height;
+            double errSurface;
+
+            switch (qrConfig.errorCorrection) {
+            case "L": // up to 7% damage allowed
+                errSurface = surface * 0.07;
+                break;
+            case "M": // up to 15% damage allowed
+                errSurface = surface * 0.15;
+                break;
+            case "Q": // up to 25% damage allowed
+                errSurface = surface * 0.25;
+                break;
+            case "H":
+                errSurface = surface * 0.30;
+                break;
+            default:
+                throw new IllegalStateException("Unknown error correction" + qrConfig.errorCorrection);
             }
+                
+            qiyLogoFromSVG(errSurface);
         }
         return qiyLogo;
+    }
+
+    // currently unused. leaving it in here so that it gets checked in.
+    private static void qiyLogoFromPng(double errorSurface) {
+        try {
+            Image image = ImageIO.read(QiyNodeClient.class.getResource("/qiy-logo-qrcode.png"));
+
+            double imgWidth = image.getWidth(null);
+            double imgHeight = image.getHeight(null);
+            double ratio = imgWidth / imgHeight;
+            double factor = Math.sqrt(errorSurface / ratio);
+
+            int width = (int) (ratio * factor);
+            int height = (int) factor;
+            image = image.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+
+            qiyLogo = image;
+        } catch (IOException e) {
+            LOGGER.warn("Error while reading qiyLogo: {}", e.getMessage());
+            throw new UncheckedIOException(e);
+        }
+        
+    }
+
+    private static void qiyLogoFromSVG(double errSurface) {
+        double newDim = Math.sqrt(errSurface); // assuming svg is square
+
+        try (InputStream logoSvgStream = QiyNodeClient.class.getResourceAsStream("/qiy-logo-qrcode.svg")) {
+            TranscoderInput logoInput = new TranscoderInput(logoSvgStream);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            TranscoderOutput resizedOutput = new TranscoderOutput(baos);
+            
+            PNGTranscoder pngTranscoder = new PNGTranscoder();
+            // Circa 65% of the image is 'written'. To correct for that scale 110% up (which is conservative)
+            // we need to be conservative as we don't know exactly how much lost space the margin will have
+
+            // Rectangle rect = new Rectangle(40, 40, 518, 324);
+            // double imgWidth = rect.getWidth();
+            // double imgHeight = rect.getHeight();
+            // double ratio = imgWidth / imgHeight;
+            // double factor = Math.sqrt(errSurface / ratio);
+            //
+            // int width = (int) (ratio * factor);
+            // int height = (int) factor;
+            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_AOI, rect);
+            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, Float.valueOf(width));
+            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, Float.valueOf(height));
+            pngTranscoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, new Float(newDim * 1.1));
+
+            pngTranscoder.transcode(logoInput, resizedOutput);
+            
+            logoSvgStream.close();
+            baos.flush();
+
+            Image image = ImageIO.read(new ByteArrayInputStream(baos.toByteArray()));
+            qiyLogo = image;
+        } catch (IOException | TranscoderException e) {
+            LOGGER.warn("Error while reading qiyLogo: {}", e.getMessage());
+            throw new IllegalStateException(e);
+        }
     }
 
     /**
@@ -411,11 +492,11 @@ public class QiyNodeClient {
     private static BitMatrix stringToBitMatrix(String input) {
         try {
             MultiFormatWriter writer = new MultiFormatWriter();
-            Map<String, Object> qrConfig = ConfigurationService.get(Configuration.QR_CONFIG);
-            Integer width = (Integer) qrConfig.get("width");
-            Integer height = (Integer) qrConfig.get("height");
-            String errCorr = (String) qrConfig.get("errorCorrection");
-            Integer margin = (Integer) qrConfig.get("margin");
+            QRConfig qrConfig = OpSdkSpiImplConfiguration.getInstance().qrConfig;
+            Integer width = qrConfig.width;
+            Integer height = qrConfig.height;
+            String errCorr = qrConfig.errorCorrection;
+            Integer margin = qrConfig.margin;
 
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.valueOf(errCorr));

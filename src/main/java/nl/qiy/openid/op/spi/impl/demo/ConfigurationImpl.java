@@ -75,9 +75,6 @@ public class ConfigurationImpl implements Configuration {
         T result;
 
         switch (key) {
-        case QR_CONFIG:
-            result = (T) getDelegate().qrConfig.asMap();
-            break;
         case BASE_URI:
             result = (T) getDelegate().baseUri;
             break;

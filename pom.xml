@@ -56,7 +56,6 @@
 			<artifactId>jersey-media-sse</artifactId>
 		</dependency>
 
-		<!-- TODO think about making this optional/provided, needed for the QiyAuthFlow -->
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>javase</artifactId>
@@ -67,6 +66,25 @@
 					<groupId>com.beust</groupId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+		<!-- needed to read the svg version of the qiy logo that scales way better 
+			than the png version -->
+		<dependency>
+			<groupId>org.apache.xmlgraphics</groupId>
+			<artifactId>batik-transcoder</artifactId>
+			<version>1.8</version>
+		</dependency>
+		<!-- looks like batik depends on this -->
+		<dependency>
+			<groupId>org.apache.xmlgraphics</groupId>
+			<artifactId>xmlgraphics-commons</artifactId>
+			<version>2.1</version>
+		</dependency>
+		<!-- looks like batik depends on this also -->
+		<dependency>
+			<groupId>org.apache.xmlgraphics</groupId>
+			<artifactId>batik-codec</artifactId>
+			<version>1.8</version>
 		</dependency>
 
 		<!-- Spock for testing (requires Groovy) -->

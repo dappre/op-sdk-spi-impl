@@ -19,9 +19,6 @@
 
 package nl.qiy.openid.op.spi.impl.demo;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -100,16 +97,5 @@ public final class QRConfig {
         this.margin = margin == null ? Integer.valueOf(0) : margin;
         this.logoHeight = logoHeight == null ? Integer.valueOf(33) : logoHeight;
         this.logoWidth = logoWidth == null ? Integer.valueOf(46) : logoWidth;
-    }
-
-    public Map<String, Object> asMap() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("width", width);
-        result.put("height", height);
-        result.put("errorCorrection", errorCorrection);
-        result.put("margin", margin);
-        result.put("logoWidth", logoWidth);
-        result.put("logoHeight", logoHeight);
-        return result;
     }
 }
