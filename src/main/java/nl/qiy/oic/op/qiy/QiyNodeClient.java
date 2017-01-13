@@ -81,12 +81,9 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
 import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.service.ConfigurationService;
-import nl.qiy.oic.op.service.SecretService;
-import nl.qiy.oic.op.service.spi.Configuration;
-import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration;
-import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
-import nl.qiy.openid.op.spi.impl.demo.QRConfig;
-import nl.qiy.openid.op.spi.impl.demo.UserValidator;
+import nl.qiy.openid.op.spi.impl.config.CryptoConfig;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * Handles the communication with a QiyNode
@@ -106,6 +103,7 @@ public class QiyNodeClient {
     private static final ObjectWriter MAP_WRITER = new ObjectMapper().writerFor(HashMap.class);
     private static Map<String, Object> cardShareData = null;
 
+    private static OpSdkSpiImplConfiguration config = null;
     private static Client jaxrs_client = null;
     private static byte[] nodeIdBytes = null;
     private static String nodeId = null;
@@ -129,6 +127,13 @@ public class QiyNodeClient {
     public static synchronized void setJaxRsClient(Client client) {
         jaxrs_client = client;
         UserValidator.setJaxRsClient(client);
+    }
+
+    private static OpSdkSpiImplConfiguration getConfig() {
+        if (config == null) {
+            config = OpSdkSpiImplConfiguration.getInstance();
+        }
+        return config;
     }
 
     /**
@@ -156,14 +161,14 @@ public class QiyNodeClient {
             LOGGER.error("Error while doing registerCallback", e);
             throw new IllegalArgumentException(e);
         }
-        String target = ConfigurationService.get(Configuration.REGISTER_CALLBACK_URI);
+        String target = OpSdkSpiImplConfiguration.getInstance().registerCallbackUri;
         Response response;
         try {
             // @formatter:off
             response = jaxrs_client
                 .target(target)
                 .request(MediaType.APPLICATION_JSON)
-                .header("password", SecretService.getNodePassword())
+                .header("password", getConfig().nodeConfig.password)
                 .header(HttpHeaders.AUTHORIZATION, getAuthHeader(databytes))
                 .post(Entity.json(data));
             // @formatter:on
@@ -228,13 +233,12 @@ public class QiyNodeClient {
             String nid = getNodeId();
             byte[] id = getNodeIdBytes();
 
-            Map<String, String> signatureConf = ConfigurationService.get(Configuration.SIGNATURE);
-            String sigAlg = signatureConf.get("sigAlgorithm");
-            String sigProv = signatureConf.get("sigProvider");
+            CryptoConfig cryptoConfig = OpSdkSpiImplConfiguration.getInstance().cryptoConfig;
+            String sigAlg = cryptoConfig.sigAlgorithm;
+            String sigProv = cryptoConfig.sigProvider;
 
             if (sigAlg == null) {
-                throw new NullPointerException(
-                        "No configuration found for " + Configuration.SIGNATURE + "/sigAlgorithm");
+                throw new NullPointerException("No configuration found for sigAlgorithm");
             }
             Signature sig;
             if (sigProv == null || sigProv.trim().isEmpty()) {
@@ -242,7 +246,7 @@ public class QiyNodeClient {
             } else {
                 sig = Signature.getInstance(sigAlg, sigProv);
             }
-            sig.initSign(SecretService.getPrivateKey());
+            sig.initSign(getConfig().nodeConfig.privateKey);
             sig.update(id, 0, id.length);
             sig.update(nonceBytes, 0, nonceBytes.length);
             if (data != null) {
@@ -280,7 +284,7 @@ public class QiyNodeClient {
      */
     private static String getNodeId() {
         if (nodeId == null) {
-            String value = ConfigurationService.get(Configuration.NODE_ID);
+            String value = getConfig().nodeConfig.id;
             nodeId = value;
         }
         return nodeId;
@@ -599,7 +603,7 @@ public class QiyNodeClient {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> getNodeApiInfo() {
         if (nodeApiInfo == null) {
-            String apiInfoUri = ConfigurationService.get(Configuration.NODE_ENDPOINT);
+            String apiInfoUri = getConfig().nodeConfig.endpoint;
             URI uri = URI.create(apiInfoUri);
             nodeApiInfo = get(uri, Map.class);
         }

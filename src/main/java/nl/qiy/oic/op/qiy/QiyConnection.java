@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.oic.op.qiy;
 
 import java.io.Serializable;
 import java.net.URI;

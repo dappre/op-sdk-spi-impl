@@ -17,10 +17,15 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.keystore;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.security.KeyStore;
 import java.security.KeyStore.Entry;
 import java.security.KeyStore.PrivateKeyEntry;
+import java.security.KeyStore.ProtectionParameter;
 import java.security.KeyStore.SecretKeyEntry;
 import java.security.KeyStore.TrustedCertificateEntry;
 import java.security.PrivateKey;
@@ -32,12 +37,18 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Throwables;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.ECKey.Curve;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
+
+import nl.qiy.openid.op.spi.impl.config.JWKConfig;
 
 /**
  * Hat tip to https://github.com/JamesSullivan1/JWK_Extractor/blob/master/src/jwk_extractor/JWK_Handler.java
@@ -118,10 +129,12 @@ import com.nimbusds.jose.jwk.RSAKey;
  * @since 30 mei 2016
  */
 public class JWKReader {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JWKReader.class);
     private static final Map<String, String> OID_MAP = new HashMap<>();
 
     private final String alias;
     private final Entry entry;
+    private final JWKConfig config;
 
     static {
         OID_MAP.put("1.2.840.113549.2.9", "HS256");
@@ -155,8 +168,32 @@ public class JWKReader {
     public JWKReader(String alias, JWKConfig config) {
         super();
         this.alias = alias;
-        this.entry = SecretStoreImpl.loadKey(alias, config.keystoreFilename, config.keystoreType,
-                config.keystorePassPhrase, config.keyPassPhrase);
+        this.config = config;
+        this.entry = loadKey();
+    }
+
+    private KeyStore.Entry loadKey() {
+        String keystoreFilename = config.keystoreFilename;
+        String keystoreType = config.keystoreType;
+        char[] keystorePass = config.keystorePassPhrase;
+        char[] keyPass = config.keyPassPhrase;
+
+        File f = new File(keystoreFilename);
+        if (!f.exists() || !f.isFile() || !f.canRead()) {
+            throw new IllegalStateException(f.getAbsolutePath() + " is not a regular readable file");
+        }
+        try (InputStream is = new FileInputStream(f)) {
+            KeyStore keyStore = KeyStore.getInstance(keystoreType);
+            keyStore.load(is, keystorePass);
+            ProtectionParameter protector = null;
+            if (keyPass != null) {
+                protector = new KeyStore.PasswordProtection(keyPass);
+            }
+            return keyStore.getEntry(alias, protector);
+        } catch (Exception e) {
+            LOGGER.warn("Error while doing loadKeyStore", e);
+            throw Throwables.propagate(e);
+        }
     }
 
     public JWK getJWK() {

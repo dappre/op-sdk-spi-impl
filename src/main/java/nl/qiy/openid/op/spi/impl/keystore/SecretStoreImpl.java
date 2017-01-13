@@ -17,14 +17,8 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.keystore;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.security.KeyStore;
-import java.security.KeyStore.ProtectionParameter;
-import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +27,12 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Throwables;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 
 import nl.qiy.oic.op.service.spi.SecretStore;
+import nl.qiy.openid.op.spi.impl.config.JWKConfig;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
 
 /**
  * The demo implementation for a {@link SecretStore}, uses the Dropwizard configuration to store secrets, which may not
@@ -51,27 +46,17 @@ public class SecretStoreImpl implements SecretStore {
      * Standard SLF4J Logger
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(SecretStoreImpl.class);
-    private final OpSdkSpiImplConfiguration config = OpSdkSpiImplConfiguration.getInstance();
 
     @Override
     public boolean isHealthy() {
-        boolean result = getNodePassword() != null && getNodePrivateKey() != null;
+        boolean result = true;
         LOGGER.debug("{} isHealthy called: {}", this.getClass(), result);
         return result;
     }
 
     @Override
-    public String getNodePassword() {
-        return config.nodeConfig.password;
-    }
-
-    @Override
-    public PrivateKey getNodePrivateKey() {
-        return config.nodeConfig.privateKey;
-    }
-
-    @Override
     public JWKSet getJWKSet(String type) {
+        OpSdkSpiImplConfiguration config = OpSdkSpiImplConfiguration.getInstance();
         Map<String, JWKConfig> jwkConfig = config.jwkConfigs.get(type);
         List<JWK> result = new ArrayList<>();
         for (Entry<String, JWKConfig> kv : jwkConfig.entrySet()) {
@@ -80,27 +65,6 @@ public class SecretStoreImpl implements SecretStore {
         }
         return new JWKSet(result);
     }
-
-    static KeyStore.Entry loadKey(String alias, String keystoreFilename, String keystoreType, char[] keystorePass,
-            char[] keyPass) {
-        File f = new File(keystoreFilename);
-        if (!f.exists() || !f.isFile() || !f.canRead()) {
-            throw new IllegalStateException(f.getAbsolutePath() + " is not a regular readable file");
-        }
-        try (InputStream is = new FileInputStream(f)) {
-            KeyStore keyStore = KeyStore.getInstance(keystoreType);
-            keyStore.load(is, keystorePass);
-            ProtectionParameter protector = null;
-            if (keyPass != null) {
-                protector = new KeyStore.PasswordProtection(keyPass);
-            }
-            return keyStore.getEntry(alias, protector);
-        } catch (Exception e) {
-            LOGGER.warn("Error while doing loadKeyStore", e);
-            throw Throwables.propagate(e);
-        }
-    }
-
 }
 
 

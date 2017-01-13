@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.config;
 
 import javax.validation.Validation;
 import javax.validation.ValidatorFactory;
@@ -78,23 +78,8 @@ public class ConfigurationImpl implements Configuration {
         case BASE_URI:
             result = (T) getDelegate().baseUri;
             break;
-        case REGISTER_CALLBACK_URI:
-            result = (T) getDelegate().registerCallbackUri;
-            break;
-        case NODE_ID:
-            result = (T) getDelegate().nodeConfig.id;
-            break;
-        case NODE_ENDPOINT:
-            result = (T) getDelegate().nodeConfig.endpoint;
-            break;
-        case SIGNATURE:
-            result = (T) getDelegate().cryptoConfig.asMap();
-            break;
         case ISS:
             result = (T) getDelegate().iss;
-            break;
-        case "dappreBaseURI":
-            result = (T) getDelegate().dappreBaseURI;
             break;
         default:
             throw new IllegalStateException("No configuration known for " + key);

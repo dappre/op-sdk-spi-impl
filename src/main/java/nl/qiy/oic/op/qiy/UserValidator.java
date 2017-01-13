@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.oic.op.qiy;
 
 import java.io.Serializable;
 import java.net.URI;
@@ -52,9 +52,8 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.base.Throwables;
 
 import io.dropwizard.jackson.Jackson;
-import nl.qiy.oic.op.qiy.QiyNodeClient;
-import nl.qiy.oic.op.qiy.QiyOAuthUser;
-import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * TODO: friso should have written a comment here to tell us what this class does

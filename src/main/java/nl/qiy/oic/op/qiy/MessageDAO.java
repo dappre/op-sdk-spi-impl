@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.oic.op.qiy;
 
 import com.google.common.base.Preconditions;
 
@@ -26,7 +26,8 @@ import redis.clients.jedis.JedisPool;
 
 /**
  * Persistence of received consent messages. This will keep track of whether they are sent, the answer is received,
- * consent was received or it should be ignored.
+ * consent was received or it should be ignored. This should be factored out ASAP (i.e. when consent has been properly
+ * implemented)
  *
  * @author Friso Vrolijken
  * @since 1 jul. 2016
