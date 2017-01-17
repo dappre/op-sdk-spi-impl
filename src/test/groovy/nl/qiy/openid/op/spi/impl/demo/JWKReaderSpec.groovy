@@ -27,6 +27,9 @@ import spock.lang.Unroll
 
 import com.nimbusds.jose.jwk.KeyType
 
+import nl.qiy.openid.op.spi.impl.config.JWKConfig
+import nl.qiy.openid.op.spi.impl.keystore.JWKReader;;
+
 class JWKReaderSpec extends Specification {
     @Shared keystoreFilePath = Paths.get(this.getClass().getResource("/test.jks").toURI()).toAbsolutePath().toString();
     @Shared keystorePass = "abacus"

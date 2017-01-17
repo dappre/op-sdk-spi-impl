@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.jedis;
 
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +33,7 @@ import com.google.common.cache.CacheBuilder;
 import nl.qiy.oic.op.domain.IDToken;
 import nl.qiy.oic.op.domain.OAuthUser;
 import nl.qiy.oic.op.qiy.QiyOAuthUser;
+import nl.qiy.oic.op.qiy.UserValidator;
 import nl.qiy.oic.op.service.spi.UserSessionManager;
 
 /**

@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.config;
 
 import java.net.URL;
 import java.util.List;
@@ -31,6 +31,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.dropwizard.Configuration;
+import nl.qiy.oic.op.qiy.QRConfig;
+import nl.qiy.oic.op.qiy.QiyNodeConfig;
+import nl.qiy.openid.op.spi.impl.jedis.JedisConfiguration;
 
 /**
  * Main configuration class. Loaded by Dropwizard, also implements the Qiy openid-connect-idp configuration interface

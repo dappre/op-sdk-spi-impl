@@ -43,6 +43,8 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
@@ -65,8 +67,8 @@ import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.oic.op.service.OAuthUserService;
 import nl.qiy.oic.op.service.spi.AuthorizationFlow;
 import nl.qiy.oic.op.service.spi.Configuration;
-import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration;
-import nl.qiy.openid.op.spi.impl.demo.OpSdkSpiImplConfiguration.CardLoginOption;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * The authorization flow that will allow the user to log in using her Qiy Node. It starts the flow by displaying a QR

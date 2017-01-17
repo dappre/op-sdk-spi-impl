@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nl.qiy.oic.op.domain.OAuthClient;
+import nl.qiy.openid.op.spi.impl.config.OAuthClientConfig;
 
 /**
  * The demo implementation for a {@link OAuthClient}
@@ -47,8 +48,8 @@ public final class OAuthClientImpl implements OAuthClient {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(OAuthClientImpl.class);
 
-    final String id;
-    final Collection<String> origin;
+    public final String id;
+    public final Collection<String> origin;
     private final Pattern uriPattern;
 
     /**
@@ -57,7 +58,7 @@ public final class OAuthClientImpl implements OAuthClient {
      * @param conf
      *            the configuration that holds the details
      */
-    OAuthClientImpl(OAuthClientConfig conf) {
+    public OAuthClientImpl(OAuthClientConfig conf) {
         super();
         this.id = conf.id;
         this.origin = conf.origin;

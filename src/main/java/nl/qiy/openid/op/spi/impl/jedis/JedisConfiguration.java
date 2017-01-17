@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.jedis;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 

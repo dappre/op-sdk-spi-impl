@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.openid.op.spi.impl.mem;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
 
 import nl.qiy.oic.op.domain.OAuthClient;
 import nl.qiy.oic.op.service.spi.ClientStore;
+import nl.qiy.openid.op.spi.impl.OAuthClientImpl;
+import nl.qiy.openid.op.spi.impl.config.OAuthClientConfig;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
 
 /**
  * Demo implementation for {@link ClientStore}

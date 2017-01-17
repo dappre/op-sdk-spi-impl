@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.oic.op.qiy;
 
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
@@ -34,9 +34,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import nl.qiy.oic.op.service.SecretService;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
 
 /**
- * TODO: friso should have written a comment here to tell us what this class does
+ * Handling encryption/decryption for messages sent to a node. This should be factored out ASAP (i.e. when consent has
+ * properly been implemented)
  *
  * @author Friso Vrolijken
  * @since 24 jun. 2016
@@ -46,6 +48,10 @@ class MessageCrypto {
      * Standard SLF4J Logger 
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(MessageCrypto.class);
+
+    private MessageCrypto() {
+        throw new UnsupportedOperationException("Utility class should only be used statically");
+    }
 
     // TODO [FV 20160611] part of the exploratory hack of enroll new user
     static byte[] encryptSymmetric(byte[] cleartext, byte[] secretBytes, byte[] iv) {
@@ -78,8 +84,7 @@ class MessageCrypto {
         try {
             Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-            byte[] encryptedSecret = cipher.doFinal(cleartext);
-            return encryptedSecret;
+            return cipher.doFinal(cleartext);
         } catch (GeneralSecurityException e) {
             LOGGER.warn("Error while doing encryptAsymmetric", e);
             throw new IllegalStateException(e);
@@ -90,8 +95,7 @@ class MessageCrypto {
         try {
             Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPwithSHA-1andMGF1Padding");
             cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-            byte[] encryptedSecret = cipher.doFinal(cleartext);
-            return encryptedSecret;
+            return cipher.doFinal(cleartext);
         } catch (GeneralSecurityException e) {
             LOGGER.warn("Error while doing encryptAsymmetric", e);
             throw new IllegalStateException(e);
@@ -154,6 +158,7 @@ class MessageCrypto {
             // padding. This also makes sure that no leading zero bytes are accidently removed.
             return decryptAsymmetricWithPadding(crypted);
         } catch (BadPaddingException e) {
+            LOGGER.trace("Trying to recover from bad padding", e);
             // BadPaddingException thus probably encrypted without padding.
             byte[] decryptedBytes = decryptAsymmetricNoPadding(crypted);
             // Note that zero bytes at the start of the byte array that should be part of the result might have been
@@ -164,7 +169,8 @@ class MessageCrypto {
 
     static byte[] decryptAsymmetricNoPadding(byte[] crypted) {
         try {
-            PrivateKey privateKey = SecretService.getPrivateKey();
+            OpSdkSpiImplConfiguration config = OpSdkSpiImplConfiguration.getInstance();
+            PrivateKey privateKey = config.nodeConfig.privateKey;
             Cipher cipher = Cipher.getInstance("RSA/ECB/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, privateKey);
             byte[] decryptedSecret = cipher.doFinal(crypted);
@@ -186,11 +192,11 @@ class MessageCrypto {
 
     static byte[] decryptAsymmetricWithPadding(byte[] crypted) throws BadPaddingException {
         try {
-            PrivateKey privateKey = SecretService.getPrivateKey();
+            OpSdkSpiImplConfiguration config = OpSdkSpiImplConfiguration.getInstance();
+            PrivateKey privateKey = config.nodeConfig.privateKey;
             Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPwithSHA-1andMGF1Padding");
             cipher.init(Cipher.DECRYPT_MODE, privateKey);
-            byte[] decryptedSecret = cipher.doFinal(crypted);
-            return decryptedSecret;
+            return cipher.doFinal(crypted);
         } catch (BadPaddingException e) {
             throw e;
         } catch (GeneralSecurityException e) {

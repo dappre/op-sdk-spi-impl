@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package nl.qiy.openid.op.spi.impl.demo;
+package nl.qiy.oic.op.qiy;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,9 +32,13 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
+
+
 public class MessageCryptoTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MessageCryptoTest.class);
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
     @SuppressWarnings("static-method")
     @Test(expected = IllegalStateException.class)
@@ -63,10 +67,12 @@ public class MessageCryptoTest {
         kpg.initialize(2048);
         KeyPair kp = kpg.generateKeyPair();
 
-        SecretStoreTestImpl.pk = kp.getPrivate();
+        QiyNodeConfig nc = QiyNodeConfig.unitTestInstance(kp.getPrivate());
+        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, nc, null, null, null, null, null,
+                null, null, null, null);
+        OpSdkSpiImplConfiguration.setInstance(config);
 
         byte[] encryptedSecret = MessageCrypto.encryptAsymmetricNoPadding(kp.getPublic(), originalBytes);
-
         byte[] decryptedSecret = MessageCrypto.decryptAsymmetricNoPadding(encryptedSecret);
 
         assertTrue(originalBytes.length == 32);
@@ -94,7 +100,10 @@ public class MessageCryptoTest {
         byte[] aesKey = new byte[32];
         byte[] iv = new byte[16];
 
-        SecretStoreTestImpl.pk = kp.getPrivate();
+        QiyNodeConfig nc = QiyNodeConfig.unitTestInstance(kp.getPrivate());
+        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, nc, null, null, null, null, null,
+                null, null, null, null);
+        OpSdkSpiImplConfiguration.setInstance(config);
 
         // Perform some crypt and decrypt situation on all kinds of random 'secrets', which should include zero byte
         // prepended secrets.
@@ -120,14 +129,13 @@ public class MessageCryptoTest {
         }
     }
 
-    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 
     public static String bytesToHex(byte[] bytes) {
         char[] hexChars = new char[bytes.length * 2];
         for (int j = 0; j < bytes.length; j++) {
             int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
+            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
         }
         return new String(hexChars);
     }
