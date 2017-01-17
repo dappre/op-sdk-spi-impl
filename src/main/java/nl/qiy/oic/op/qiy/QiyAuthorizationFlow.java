@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BinaryOperator;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import javax.servlet.http.HttpServletRequest;
@@ -52,8 +53,8 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 
 import org.glassfish.jersey.media.sse.EventOutput;
-import org.glassfish.jersey.media.sse.OutboundEvent;
 import org.glassfish.jersey.media.sse.SseFeature;
+import org.glassfish.jersey.server.ChunkedOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -217,9 +218,9 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     @SuppressWarnings({ "ucd" })
-    public void watchLoginStatusLongPoll(@PathParam("random") String random, @Context HttpServletRequest request,
-            @Suspended AsyncResponse asyncResponse) {
-
+    public static Response watchLoginStatusLongPoll(@PathParam("random") String random,
+            @Context HttpServletRequest request) {
+        return doWatchLoginStatus(random, request, () -> new ChunkedOutput<>(String.class, "\n"));
     }
 
     /**
@@ -235,14 +236,28 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     @Path("watch/{random}")
     @GET
     @Produces(SseFeature.SERVER_SENT_EVENTS)
-    @SuppressWarnings({ "ucd", "resource" })
+    @SuppressWarnings({ "ucd" })
     public static Response watchLoginStatus(@PathParam("random") String random, @Context HttpServletRequest request) {
-        EventOutput eventOutput = null;
+        return doWatchLoginStatus(random, request, EventOutput::new);
+    }
+
+    /**
+     * Returns a streaming response where the events will pass
+     * 
+     * @param random
+     * @param request
+     * @param supplier
+     * @return see description
+     */
+    @SuppressWarnings("resource")
+    private static Response doWatchLoginStatus(String random, HttpServletRequest request,
+            Supplier<ChunkedOutput<?>> supplier) {
+        ChunkedOutput<?> eventOutput = null;
         Optional<OAuthUser> loggedIn = OAuthUserService.getLoggedIn(request.getSession());
          if (loggedIn.isPresent()) {
             notifyUserLoggedIn(random, loggedIn.get(), null);
          } else {
-            eventOutput = eventStreams.newEventOutput(random);
+            eventOutput = eventStreams.newOutput(random, supplier);
          }
         // @formatter:off
         return Response.ok()
@@ -281,52 +296,16 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             LOGGER.info("Calling login for {}", cbInput.pid);
             QiyOAuthUser template = new QiyOAuthUser(cbInput);
             OAuthUser oAuthUser = OAuthUserService.login(template, session);
-
-            // works, but don't want it, look in scm history for a listen that doesn't work yet
             if (oAuthUser == null) {
                 if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD) {
                     LOGGER.info(
                             "No logged in user found after callback {}, card message may be in transit, waiting a sec",
                             template.getSubject());
-                    // TODO [FV 20170103] refactor this
-                    THREAD_POOL.execute(() -> {
-                        OAuthUser loggedIn = null;
-                        for (int i = 0; i < 3; i++) {
-                            try {
-                                Thread.sleep(500);
-                            } catch (Exception e) {
-                                LOGGER.warn("Error while doing ", e);
-                                throw new IllegalStateException(e);
-                            }
-                            loggedIn = OAuthUserService.login(template, session);
-                            if (loggedIn != null) {
-                                notifyUserLoggedIn(random, loggedIn, cbInput);
-                                break;
-                            }
-                        }
-                        if (loggedIn == null) {
-                            LOGGER.warn("No logged in user found after callback {}", template.getSubject());
-                            notify(random, "error", "not logged in after callback");
-                        }
-                    });
-                    return Response.ok().build(); // node can't help it so answer OK to it
+                    tryLogin(random, cbInput, session, template, 3, true);
+                } else {
+                    LOGGER.info("No user returned, submitting loop to thread pool");
+                    tryLogin(random, cbInput, session, template, 120, false);
                 }
-                LOGGER.info("No user returned, submitting loop to thread pool");
-                THREAD_POOL.execute(() -> {
-                    for (int i = 0; i < 120; i++) {
-                        try {
-                            Thread.sleep(500);
-                        } catch (Exception e) {
-                            LOGGER.warn("Error while doing ", e);
-                            throw new IllegalStateException(e);
-                        }
-                        OAuthUser loggedIn = OAuthUserService.login(template, session);
-                        if (loggedIn != null) {
-                            notifyUserLoggedIn(random, loggedIn, cbInput);
-                            break;
-                        }
-                    }
-                });
             } else {
                 notifyUserLoggedIn(random, oAuthUser, cbInput);
             }
@@ -337,8 +316,33 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         }
     }
 
+    private static void tryLogin(String random, CallbackInput cbInput, HttpSession session, QiyOAuthUser template,
+            int times,
+            boolean errorIfNotLoggedIn) {
+        THREAD_POOL.execute(() -> {
+            OAuthUser loggedIn = null;
+            for (int i = 0; i < times; i++) {
+                try {
+                    Thread.sleep(500);
+                } catch (Exception e) {
+                    LOGGER.warn("Error while doing ", e);
+                    throw new IllegalStateException(e);
+                }
+                loggedIn = OAuthUserService.login(template, session);
+                if (loggedIn != null) {
+                    notifyUserLoggedIn(random, loggedIn, cbInput);
+                    break;
+                }
+            }
+            if (errorIfNotLoggedIn && loggedIn == null) {
+                LOGGER.warn("No logged in user found after callback {}", template.getSubject());
+                eventStreams.write(random, "error", "not logged in after callback");
+            }
+        });
+    }
+
     private static void notifyUserLoggedIn(String random, OAuthUser oAuthUser, CallbackInput cbInput) {
-        LOGGER.info("Notifying {} of login with random {}", oAuthUser.getSubject(), random, cbInput.pid);
+        LOGGER.info("Notifying {} of login with random {}", oAuthUser.getSubject(), random);
         AuthenticationRequest request = AuthenticationRequest.fromBytes(cbInput.body);
         Response response = AuthenticationResponse.getResponse(request, oAuthUser);
         Map<String, String> body = new HashMap<>();
@@ -348,20 +352,9 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             Object entity = response.getEntity();
             body.put("page", entity == null ? null : entity.toString());
         }
-        notify(random, "loggedIn", body);
+        eventStreams.write(random, "loggedIn", body);
         // final event, so clean up
         eventStreams.remove(random);
-    }
-
-    private static void notify(String streamId, String eventName, Object eventData) {
-        // @formatter:off
-        OutboundEvent chunk = new OutboundEvent.Builder()
-                .name(eventName)
-                .data(eventData)
-                .mediaType(MediaType.APPLICATION_JSON_TYPE)
-                .build();
-        // @formatter:on
-        eventStreams.write(streamId, chunk);
     }
 
     private static String getCallbackUri(String random2) {
