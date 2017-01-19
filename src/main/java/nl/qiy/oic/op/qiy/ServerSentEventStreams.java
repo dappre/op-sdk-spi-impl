@@ -152,6 +152,9 @@ public class ServerSentEventStreams implements Managed {
      * 
      * @param streamId
      *            the streamId of the {@link EventOutput}, which will be used to find it
+     * @param supplier
+     *            supplier for the concrete type of ChunkedOutput (most likely constructor for EventOutput or
+     *            ChunkedOutput)
      * @return see description
      */
     public ChunkedOutput<?> newOutput(String streamId, Supplier<ChunkedOutput<?>> supplier) {
