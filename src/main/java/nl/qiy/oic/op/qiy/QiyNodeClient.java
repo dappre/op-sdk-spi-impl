@@ -364,30 +364,8 @@ public class QiyNodeClient {
         return qiyLogo;
     }
 
-    // currently unused. leaving it in here so that it gets checked in.
-    private static void qiyLogoFromPng(double errorSurface) {
-        try {
-            Image image = ImageIO.read(QiyNodeClient.class.getResource("/qiy-logo-qrcode.png"));
-
-            double imgWidth = image.getWidth(null);
-            double imgHeight = image.getHeight(null);
-            double ratio = imgWidth / imgHeight;
-            double factor = Math.sqrt(errorSurface / ratio);
-
-            int width = (int) (ratio * factor);
-            int height = (int) factor;
-            image = image.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-
-            qiyLogo = image;
-        } catch (IOException e) {
-            LOGGER.warn("Error while reading qiyLogo: {}", e.getMessage());
-            throw new UncheckedIOException(e);
-        }
-        
-    }
-
     private static void qiyLogoFromSVG(double errSurface) {
-        double newDim = Math.sqrt(errSurface); // assuming svg is square
+        double newDim = Math.sqrt(errSurface); // assuming svg is square, if it's not, look in the history of this file
 
         try (InputStream logoSvgStream = QiyNodeClient.class.getResourceAsStream("/qiy-logo-qrcode.svg")) {
             TranscoderInput logoInput = new TranscoderInput(logoSvgStream);
@@ -396,21 +374,7 @@ public class QiyNodeClient {
             TranscoderOutput resizedOutput = new TranscoderOutput(baos);
             
             PNGTranscoder pngTranscoder = new PNGTranscoder();
-            // Circa 65% of the image is 'written'. To correct for that scale 110% up (which is conservative)
-            // we need to be conservative as we don't know exactly how much lost space the margin will have
-
-            // Rectangle rect = new Rectangle(40, 40, 518, 324);
-            // double imgWidth = rect.getWidth();
-            // double imgHeight = rect.getHeight();
-            // double ratio = imgWidth / imgHeight;
-            // double factor = Math.sqrt(errSurface / ratio);
-            //
-            // int width = (int) (ratio * factor);
-            // int height = (int) factor;
-            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_AOI, rect);
-            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, Float.valueOf(width));
-            // pngTranscoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, Float.valueOf(height));
-            pngTranscoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, new Float(newDim * 1.1));
+            pngTranscoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, new Float(newDim));
 
             pngTranscoder.transcode(logoInput, resizedOutput);
             
@@ -472,10 +436,11 @@ public class QiyNodeClient {
         }
         // @formatter:off
         return String.format(
-                "dappre://connect/?target=%s&tmpSecret=%s&identifier=%s",
+                "dappre://connect/?target=%s&tmpSecret=%s&identifier=%s&a=%s",
                 b64(connectToken.target.toString()), 
                 b64(b64(connectToken.tmpSecret)), 
-                b64(connectToken.identifier)
+                b64(connectToken.identifier),
+                b64(Boolean.toString(connectToken.a))
         ); // @formatter:on
     }
 

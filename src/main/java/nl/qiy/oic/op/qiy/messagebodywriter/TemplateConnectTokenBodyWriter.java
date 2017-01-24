@@ -85,7 +85,5 @@ public class TemplateConnectTokenBodyWriter implements MessageBodyWriter<QiyConn
         template.add("connectjson", t.getQrJson());
         byte[] content = template.render().getBytes(StandardCharsets.UTF_8);
         entityStream.write(content);
-        // NoIndentWriter niw = new NoIndentWriter(new OutputStreamWriter(entityStream));
-        // template.write(niw);
     }
 }
