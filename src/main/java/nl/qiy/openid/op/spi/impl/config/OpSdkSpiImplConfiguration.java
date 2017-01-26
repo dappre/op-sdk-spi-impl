@@ -92,12 +92,15 @@ public class OpSdkSpiImplConfiguration extends Configuration {
     @NotNull
     public JedisConfiguration jedisConfiguration;
 
+    public Integer sessionTimeoutInSeconds;
+
 
     private static OpSdkSpiImplConfiguration instance;
 
     // @formatter:off
     @JsonCreator // NOSONAR
     public OpSdkSpiImplConfiguration(@JsonProperty("qrConfig") QRConfig qrConfig, // NOSONAR
+            @JsonProperty("sessionTimeoutInSeconds") Integer sessionTimeoutInSeconds,
             @JsonProperty("clientConfig") List<OAuthClientConfig> clientConfig,
             @JsonProperty("nodeConfig") QiyNodeConfig nodeConfig,
             @JsonProperty("cryptoConfig") CryptoConfig cryptoConfig, 
@@ -111,6 +114,7 @@ public class OpSdkSpiImplConfiguration extends Configuration {
             @JsonProperty("jedisConfiguration") JedisConfiguration jedisConfiguration) {
         // @formatter:on
         super();
+        this.sessionTimeoutInSeconds = sessionTimeoutInSeconds;
         this.clientConfig = clientConfig;
         this.cryptoConfig = cryptoConfig == null ? new CryptoConfig() : cryptoConfig;
         this.nodeConfig = nodeConfig;

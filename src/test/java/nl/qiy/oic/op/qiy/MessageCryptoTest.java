@@ -68,8 +68,8 @@ public class MessageCryptoTest {
         KeyPair kp = kpg.generateKeyPair();
 
         QiyNodeConfig nc = QiyNodeConfig.unitTestInstance(kp.getPrivate());
-        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, nc, null, null, null, null, null,
-                null, null, null, null);
+        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, null, nc, null, null, null, null,
+                null, null, null, null, null);
         OpSdkSpiImplConfiguration.setInstance(config);
 
         byte[] encryptedSecret = MessageCrypto.encryptAsymmetricNoPadding(kp.getPublic(), originalBytes);
@@ -101,7 +101,8 @@ public class MessageCryptoTest {
         byte[] iv = new byte[16];
 
         QiyNodeConfig nc = QiyNodeConfig.unitTestInstance(kp.getPrivate());
-        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, nc, null, null, null, null, null,
+        OpSdkSpiImplConfiguration config = new OpSdkSpiImplConfiguration(null, null, null, nc, null, null, null, null,
+                null,
                 null, null, null, null);
         OpSdkSpiImplConfiguration.setInstance(config);
 

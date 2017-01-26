@@ -43,8 +43,6 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.container.AsyncResponse;
-import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
@@ -301,7 +299,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
                     LOGGER.info(
                             "No logged in user found after callback {}, card message may be in transit, waiting a sec",
                             template.getSubject());
-                    tryLogin(random, cbInput, session, template, 3, true);
+                    tryLogin(random, cbInput, session, template, 20, true);
                 } else {
                     LOGGER.info("No user returned, submitting loop to thread pool");
                     tryLogin(random, cbInput, session, template, 120, false);

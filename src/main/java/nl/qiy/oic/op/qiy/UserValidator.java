@@ -138,11 +138,8 @@ public class UserValidator implements Serializable {
             RANDOM.nextBytes(iv);
             byte[] message = MessageCrypto
                     .encryptSymmetric(getWelcomemessagebytes(), secret, iv);
-            // TODO [RB 20160808] Temporary. Once the iOS and Android clients supporting padded encryption have been
-            // around for some time this should be changed to encryptAsymmetricWithPadding
-            // [FV] Target: 20161201
-            byte[] encryptedIV = MessageCrypto.encryptAsymmetricNoPadding(publicKey, iv);
-            byte[] encryptedSecret = MessageCrypto.encryptAsymmetricNoPadding(publicKey, secret);
+            byte[] encryptedIV = MessageCrypto.encryptAsymmetricWithPadding(publicKey, iv);
+            byte[] encryptedSecret = MessageCrypto.encryptAsymmetricWithPadding(publicKey, secret);
 
             LOGGER.info("Sending consent request iv length: {}, secret length: {}", iv.length, secret.length);
 

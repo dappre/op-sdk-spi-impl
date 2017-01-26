@@ -35,6 +35,7 @@ import nl.qiy.oic.op.domain.OAuthUser;
 import nl.qiy.oic.op.qiy.QiyOAuthUser;
 import nl.qiy.oic.op.qiy.UserValidator;
 import nl.qiy.oic.op.service.spi.UserSessionManager;
+import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
 
 /**
  * The demo implementation for {@link UserSessionManager}, uses an internal {@link Cache} and the HTTP Session to store
@@ -53,14 +54,29 @@ public class UserSessionManagerImpl implements UserSessionManager {
     private static final Cache<String, IDToken> BEARER_CACHE = CacheBuilder.newBuilder()
             .expireAfterWrite(BEARER_EXPIRY_SECONDS, TimeUnit.SECONDS).build();
 
+    private Boolean skipSessionStorage;
+
     @Override
     public boolean isHealthy() {
         LOGGER.debug("{} isHealthy called: {}", this.getClass(), true);
         return true;
     }
 
+    private boolean isSkipSessionStorage() {
+        if (skipSessionStorage == null) {
+            Integer sessionTimeoutInSeconds = OpSdkSpiImplConfiguration.getInstance().sessionTimeoutInSeconds;
+            skipSessionStorage = (sessionTimeoutInSeconds != null && sessionTimeoutInSeconds.intValue() == 1);
+        }
+        return skipSessionStorage.booleanValue();
+    }
+
     @Override
     public OAuthUser getLoggedIn(HttpSession session) {
+        if (isSkipSessionStorage()) {
+            // short circuit
+            LOGGER.debug("Skipping session lookup since we're configured that way");
+            return null;
+        }
         QiyOAuthUser userImpl = (QiyOAuthUser) session.getAttribute(LOGGED_IN_USER);
         if (userImpl == null) {
             return null;
@@ -89,22 +105,28 @@ public class UserSessionManagerImpl implements UserSessionManager {
         Preconditions.checkNotNull(input.getSubject(), "The subject may not be null");
         Preconditions.checkNotNull(input.getConnectionUri(), "The connectionUri may not be null");
 
-        QiyOAuthUser userImpl = (QiyOAuthUser) session.getAttribute(LOGGED_IN_USER);
+        QiyOAuthUser userImpl;
 
-        if (userImpl == null || !input.getSubject().equals(userImpl.getSubject())) {
+        if (isSkipSessionStorage()) {
+            LOGGER.debug("Skipping session storage since we're configured that way");
             userImpl = new QiyOAuthUser(input);
-            session.setAttribute(LOGGED_IN_USER, new QiyOAuthUser(input)); // set a fresh one to prevent claims from
-                                                                           // being stored
+        } else {
+            userImpl = (QiyOAuthUser) session.getAttribute(LOGGED_IN_USER);
+            boolean newLogin = userImpl == null || !input.getSubject().equals(userImpl.getSubject());
+            if (newLogin) {
+                userImpl = new QiyOAuthUser(input);
+                session.setAttribute(LOGGED_IN_USER, new QiyOAuthUser(input));
+                // set a fresh one to prevent claims from being stored
+                userImpl.resetLoginTime();
+            }
         }
-
         UserValidator uv = new UserValidator(userImpl);
         userImpl = uv.getValidatedUser();
         if (userImpl == null) {
             return null;
         }
+        // else
 
-        // TODO [FV 20160730] move this?
-        userImpl.resetLoginTime();
         LOGGER.debug("User {} is logged in", userImpl.getSubject());
         return userImpl;
     }
