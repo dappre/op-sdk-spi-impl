@@ -40,7 +40,6 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Throwables;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.ECKey.Curve;
@@ -190,9 +189,12 @@ public class JWKReader {
                 protector = new KeyStore.PasswordProtection(keyPass);
             }
             return keyStore.getEntry(alias, protector);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Error while doing loadKeyStore", e);
+            throw e;
         } catch (Exception e) {
             LOGGER.warn("Error while doing loadKeyStore", e);
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 

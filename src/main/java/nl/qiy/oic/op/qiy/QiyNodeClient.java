@@ -36,14 +36,11 @@ import java.security.NoSuchProviderException;
 import java.security.ProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 import javax.imageio.ImageIO;
@@ -126,7 +123,6 @@ public class QiyNodeClient {
 
     public static synchronized void setJaxRsClient(Client client) {
         jaxrs_client = client;
-        UserValidator.setJaxRsClient(client);
     }
 
     private static OpSdkSpiImplConfiguration getConfig() {
@@ -504,23 +500,7 @@ public class QiyNodeClient {
      *            the URI to call
      * @return whatever was gotten
      */
-    public static Optional<List<Map<String, Object>>> getList(URI uri) {
-        Response response = doGet(uri);
-        if (response.getStatusInfo().getFamily() == Status.Family.SUCCESSFUL) {
-            ArrayList<Map<String, Object>> result = response.readEntity(ArrayList.class);
-            return Optional.of(result);
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * Wrapper around a HTTPClient's get method which adds the Authorization header and expects a JSON body
-     * 
-     * @param uri
-     *            the URI to call
-     * @return whatever was gotten
-     */
-    private static Response doGet(URI uri) {
+    public static Response doGet(URI uri) {
         // @formatter:off
         return jaxrs_client
             .target(uri)

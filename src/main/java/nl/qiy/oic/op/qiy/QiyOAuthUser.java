@@ -21,9 +21,7 @@ package nl.qiy.oic.op.qiy;
 
 import java.net.URI;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,10 +47,10 @@ public class QiyOAuthUser implements OAuthUser {
     private static final long serialVersionUID = 1L;
 
     private final CallbackInput cbInput;
-    private final Set<String> shareIds = new HashSet<>();
 
     private long loginTime = 0L;
     private transient StandardClaims claims;
+    private URI referenceUri;
 
     /**
      * Creates a template user
@@ -181,14 +179,25 @@ public class QiyOAuthUser implements OAuthUser {
         this.claims = null;
     }
 
-    public void setShareIds(Set<String> newValue) {
-        this.shareIds.clear();
-        if (newValue != null) {
-            this.shareIds.addAll(newValue);
+    /**
+     * Lazy getter
+     * 
+     * @return the link to all the references received for this connection
+     */
+    public URI getReferenceUri() {
+        if (referenceUri == null) {
+            QiyConnection connection = QiyNodeClient.get(getConnectionUri(), QiyConnection.class);
+            if (connection == null) {
+                return null;
+            }
+            Map<String, URI> links = connection.links;
+            referenceUri = links.get("references");
         }
+        return referenceUri;
     }
 
-    public Set<String> getShareIds() {
-        return this.shareIds;
+    @Override
+    public String toString() {
+        return "QiyOAuthUser [sub=" + getSubject() + "]";
     }
 }

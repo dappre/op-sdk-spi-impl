@@ -26,14 +26,16 @@ import java.util.Map;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
 
 import io.dropwizard.Configuration;
 import nl.qiy.oic.op.qiy.QRConfig;
 import nl.qiy.oic.op.qiy.QiyNodeConfig;
-import nl.qiy.openid.op.spi.impl.jedis.JedisConfiguration;
 
 /**
  * Main configuration class. Loaded by Dropwizard, also implements the Qiy openid-connect-idp configuration interface
@@ -59,6 +61,7 @@ public class OpSdkSpiImplConfiguration extends Configuration {
 
     }
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(OpSdkSpiImplConfiguration.class);
     private static final String DEFAULT_WELCOME_MESSAGE = "May we use your card data? Answer 'yes' if you agree";
 
     @NotNull
@@ -89,8 +92,7 @@ public class OpSdkSpiImplConfiguration extends Configuration {
 
     public final String welcomeMessage;
 
-    @NotNull
-    public JedisConfiguration jedisConfiguration;
+    public Object jedisConfiguration;
 
     public Integer sessionTimeoutInSeconds;
 
@@ -111,9 +113,12 @@ public class OpSdkSpiImplConfiguration extends Configuration {
             @JsonProperty("cardMsgUri") String cardMsgUri,
             @JsonProperty("cardLoginOption") String cardLoginOption,
             @JsonProperty("welcomeMessage") String welcomeMessage,
-            @JsonProperty("jedisConfiguration") JedisConfiguration jedisConfiguration) {
+            @JsonProperty("jedisConfiguration") Object jedisConfiguration) {
         // @formatter:on
         super();
+        if (jedisConfiguration != null) {
+            LOGGER.info("ignoring Jedis configuration: {}", jedisConfiguration);
+        }
         this.sessionTimeoutInSeconds = sessionTimeoutInSeconds;
         this.clientConfig = clientConfig;
         this.cryptoConfig = cryptoConfig == null ? new CryptoConfig() : cryptoConfig;
@@ -126,14 +131,15 @@ public class OpSdkSpiImplConfiguration extends Configuration {
         this.cardMsgUri = cardMsgUri;
         this.cardLoginOption = cardLoginOption == null ? CardLoginOption.NO_CARD
                 : CardLoginOption.valueOf(cardLoginOption);
-        this.jedisConfiguration = jedisConfiguration == null
-                ? new JedisConfiguration(null, null, null, null, null, null, null, null)
-                : jedisConfiguration;
         if (this.cardLoginOption == CardLoginOption.NO_CARD && welcomeMessage == null) {
             this.welcomeMessage = null;
         } else {
             this.welcomeMessage = welcomeMessage == null ? DEFAULT_WELCOME_MESSAGE : welcomeMessage;
         }
+
+        Preconditions.checkArgument(this.registerCallbackUri.contains(nodeConfig.id),
+                "Field 'registerCallbackUri': %s in the config file is expected to contain the node's id: %s",
+                this.registerCallbackUri, nodeConfig.id);
     }
 
     public static void setInstance(OpSdkSpiImplConfiguration inst) {

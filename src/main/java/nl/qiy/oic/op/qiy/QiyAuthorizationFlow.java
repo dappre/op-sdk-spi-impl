@@ -56,8 +56,6 @@ import org.glassfish.jersey.server.ChunkedOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Throwables;
-
 import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.api.AuthenticationResponse;
 import nl.qiy.oic.op.domain.OAuthUser;
@@ -308,9 +306,12 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
                 notifyUserLoggedIn(random, oAuthUser, cbInput);
             }
             return Response.ok().build();
+        } catch (RuntimeException t) {
+            LOGGER.warn("Error while doing callbackFromQiyNode", t);
+            throw t;
         } catch (Throwable t) {
             LOGGER.warn("Error while doing callbackFromQiyNode", t);
-            throw Throwables.propagate(t);
+            throw new RuntimeException(t);
         }
     }
 
