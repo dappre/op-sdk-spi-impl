@@ -20,7 +20,6 @@
 package nl.qiy.oic.op.qiy;
 
 import java.lang.reflect.Method;
-import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
 import java.security.SecureRandom;
@@ -29,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -54,6 +54,10 @@ import org.glassfish.jersey.server.ChunkedOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.io.BaseEncoding;
+
 import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.api.AuthenticationResponse;
 import nl.qiy.oic.op.domain.OAuthUser;
@@ -76,11 +80,14 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyAuthorizationFlow.class);
     private static final Random RANDOM = new SecureRandom();
+    private static final BaseEncoding B_32 = BaseEncoding.base32().omitPadding();
     private static QiyAuthorizationFlow instance;
     private static ServerSentEventStreams eventStreams;
 
     // I suppose we should want to migrate this to Redis or something
-    private static final Map<String, HttpSession> TO_BE_LOGGED_IN = new HashMap<>();
+    private static final Cache<String, HttpSession> TO_BE_LOGGED_IN = CacheBuilder.newBuilder()
+            .expireAfterWrite(45, TimeUnit.MINUTES)
+            .build();
 
     private static UriBuilder notificationUriBuilder;
     private static UriBuilder callbackUriBuilder;
@@ -160,10 +167,8 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         do {
             byte[] random = new byte[32];
             RANDOM.nextBytes(random);
-            // NB: this conversion does not play well with leading zeros (they get skipped as leading zeros are
-            // meaningless to numbers). For our purposes that doesn't matter, change this code if it does
-            sRandom = new BigInteger(1, random).toString(36);
-        } while (sRandom == null || TO_BE_LOGGED_IN.containsKey(sRandom));
+            sRandom = B_32.encode(random);
+        } while (sRandom == null || TO_BE_LOGGED_IN.getIfPresent(sRandom) != null);
         return sRandom;
     }
 
@@ -277,7 +282,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
     public static Response callbackFromQiyNode(@PathParam("random") String random, CallbackInput cbInput) {
         try {
             LOGGER.debug("Callback from Qiy node invoked for random {}", random);
-            HttpSession session = TO_BE_LOGGED_IN.get(random);
+            HttpSession session = TO_BE_LOGGED_IN.getIfPresent(random);
             if (session == null) {
                 String msg = "No session waits for login with id " + random;
                 LOGGER.warn(msg);
