@@ -19,6 +19,7 @@
 
 package nl.qiy.openid.op.spi.impl.config;
 
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +27,6 @@ import java.util.Map;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -44,25 +43,7 @@ import nl.qiy.oic.op.qiy.QiyNodeConfig;
  * @since 9 mei 2016
  */
 public class OpSdkSpiImplConfiguration extends Configuration {
-    /**
-     * What should our status be with regards to cards? Three options:
-     * <ul>
-     * <li>We require a shared card before we say we're logged in
-     * <li>We're logged in if a card is shared, and if we've got it we'll hand out the details
-     * <li>We do require a card to be shared (this is because we can't properly delete connections within Dappre), but
-     * we do not want to give out the details on the card. This means that we do not need to ask the user's consent
-     * </ul>
-     *
-     * @author friso
-     * @since 1 dec. 2016
-     */
-    public enum CardLoginOption {
-        NO_CARD, WANT_CARD, NEED_CARD;
-
-    }
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(OpSdkSpiImplConfiguration.class);
-    private static final String DEFAULT_WELCOME_MESSAGE = "May we use your card data? Answer 'yes' if you agree";
+    // private static final Logger LOGGER = LoggerFactory.getLogger(OpSdkSpiImplConfiguration.class);
 
     @NotNull
     public final QRConfig qrConfig;
@@ -79,23 +60,19 @@ public class OpSdkSpiImplConfiguration extends Configuration {
     @NotEmpty
     public final String iss;
 
-    public final String cardMsgUri;
+    public final URL htmlQiyConnectTokenTemplate;
+
 
     /**
      * purpose (idToken, userInfo or requestObject) mapped to [key alias mapped to config]
      */
     @NotEmpty
     public final Map<String, Map<String, JWKConfig>> jwkConfigs;
+
     @NotNull
-    public URL dappreBaseURI;
-    public final CardLoginOption cardLoginOption;
+    public final URL dappreBaseURI;
 
-    public final String welcomeMessage;
-
-    public Object jedisConfiguration;
-
-    public Integer sessionTimeoutInSeconds;
-
+    public final Integer sessionTimeoutInSeconds;
 
     private static OpSdkSpiImplConfiguration instance;
 
@@ -107,35 +84,29 @@ public class OpSdkSpiImplConfiguration extends Configuration {
             @JsonProperty("nodeConfig") QiyNodeConfig nodeConfig,
             @JsonProperty("cryptoConfig") CryptoConfig cryptoConfig, 
             @JsonProperty("baseUri") String baseUri,
+            @JsonProperty("dappreBaseURI") String dappreBaseUri,
             @JsonProperty("registerCallbackUri") String registerCallbackUri,
             @JsonProperty("iss") String iss,
             @JsonProperty("jwkConfigs") Map<String, Map<String, JWKConfig>> jwkConfigs,
+            @JsonProperty("htmlQiyConnectTokenTemplate") String htmlQiyConnectTokenTemplate,
             @JsonProperty("cardMsgUri") String cardMsgUri,
             @JsonProperty("cardLoginOption") String cardLoginOption,
             @JsonProperty("welcomeMessage") String welcomeMessage,
-            @JsonProperty("jedisConfiguration") Object jedisConfiguration) {
+            @JsonProperty("jedisConfiguration") Object jedisConfiguration) throws MalformedURLException {
         // @formatter:on
         super();
-        if (jedisConfiguration != null) {
-            LOGGER.info("ignoring Jedis configuration: {}", jedisConfiguration);
-        }
         this.sessionTimeoutInSeconds = sessionTimeoutInSeconds;
         this.clientConfig = clientConfig;
         this.cryptoConfig = cryptoConfig == null ? new CryptoConfig() : cryptoConfig;
         this.nodeConfig = nodeConfig;
         this.qrConfig = qrConfig == null ? new QRConfig() : qrConfig;
         this.baseUri = baseUri;
+        this.dappreBaseURI = new URL(dappreBaseUri);
         this.registerCallbackUri = registerCallbackUri;
         this.iss = iss;
         this.jwkConfigs = jwkConfigs;
-        this.cardMsgUri = cardMsgUri;
-        this.cardLoginOption = cardLoginOption == null ? CardLoginOption.NO_CARD
-                : CardLoginOption.valueOf(cardLoginOption);
-        if (this.cardLoginOption == CardLoginOption.NO_CARD && welcomeMessage == null) {
-            this.welcomeMessage = null;
-        } else {
-            this.welcomeMessage = welcomeMessage == null ? DEFAULT_WELCOME_MESSAGE : welcomeMessage;
-        }
+        this.htmlQiyConnectTokenTemplate = htmlQiyConnectTokenTemplate == null ? null
+                : new URL(htmlQiyConnectTokenTemplate);
 
         Preconditions.checkArgument(this.registerCallbackUri.contains(nodeConfig.id),
                 "Field 'registerCallbackUri': %s in the config file is expected to contain the node's id: %s",

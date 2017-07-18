@@ -80,7 +80,6 @@ import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.openid.op.spi.impl.config.CryptoConfig;
 import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
-import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * Handles the communication with a QiyNode
@@ -101,7 +100,7 @@ public class QiyNodeClient {
     private static Map<String, Object> cardShareData = null;
 
     private static OpSdkSpiImplConfiguration config = null;
-    private static Client jaxrs_client = null;
+    private static Client jaxrsClient = null;
     private static byte[] nodeIdBytes = null;
     private static String nodeId = null;
     private static Image qiyLogo = null;
@@ -122,7 +121,7 @@ public class QiyNodeClient {
     }
 
     public static synchronized void setJaxRsClient(Client client) {
-        jaxrs_client = client;
+        jaxrsClient = client;
     }
 
     private static OpSdkSpiImplConfiguration getConfig() {
@@ -161,7 +160,7 @@ public class QiyNodeClient {
         Response response;
         try {
             // @formatter:off
-            response = jaxrs_client
+            response = jaxrsClient
                 .target(target)
                 .request(MediaType.APPLICATION_JSON)
                 .header("password", getConfig().nodeConfig.password)
@@ -196,8 +195,7 @@ public class QiyNodeClient {
             Map<String, Object> data = new HashMap<>();
             URI cardMsgURI = null;
             try {
-                boolean oneWay = OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD;
-                cardMsgURI = dappreBaseUrl.toURI().resolve("cardowner/cardmsg?oneWay=" + oneWay);
+                cardMsgURI = dappreBaseUrl.toURI().resolve("cardowner/cardmsg?oneWay=true");
             } catch (URISyntaxException e) {
                 LOGGER.error("Error while doing registerCallback", e);
                 throw new IllegalStateException("Please check your configuration");
@@ -502,7 +500,7 @@ public class QiyNodeClient {
      */
     public static Response doGet(URI uri) {
         // @formatter:off
-        return jaxrs_client
+        return jaxrsClient
             .target(uri)
             .request(MediaType.APPLICATION_JSON)
             .header(HttpHeaders.AUTHORIZATION, getAuthHeader(null))
@@ -519,7 +517,7 @@ public class QiyNodeClient {
     public static void listen(Function<InboundEvent, Boolean> evtConsumer) {
         URI target = getNodeEventUri();
         // @formatter:off
-        Builder builder = jaxrs_client
+        Builder builder = jaxrsClient
                 .target(target)
                 .request()
                 .header(HttpHeaders.AUTHORIZATION, getAuthHeader(null)); // @formatter:on

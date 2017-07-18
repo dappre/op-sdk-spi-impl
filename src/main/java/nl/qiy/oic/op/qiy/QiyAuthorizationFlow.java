@@ -29,8 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -63,8 +61,6 @@ import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.oic.op.service.OAuthUserService;
 import nl.qiy.oic.op.service.spi.AuthorizationFlow;
 import nl.qiy.oic.op.service.spi.Configuration;
-import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
-import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration.CardLoginOption;
 
 /**
  * The authorization flow that will allow the user to log in using her Qiy Node. It starts the flow by displaying a QR
@@ -80,7 +76,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyAuthorizationFlow.class);
     private static final Random RANDOM = new SecureRandom();
-    private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(8);
     private static QiyAuthorizationFlow instance;
     private static ServerSentEventStreams eventStreams;
 
@@ -293,18 +288,11 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             QiyOAuthUser template = new QiyOAuthUser(cbInput);
             OAuthUser oAuthUser = OAuthUserService.login(template, session);
             if (oAuthUser == null) {
-                if (OpSdkSpiImplConfiguration.getInstance().cardLoginOption == CardLoginOption.NO_CARD) {
-                    LOGGER.info(
-                            "No logged in user found after callback {}, card message may be in transit, waiting a sec",
-                            template.getSubject());
-                    tryLogin(random, cbInput, session, template, 20, true);
-                } else {
-                    LOGGER.info("No user returned, submitting loop to thread pool");
-                    tryLogin(random, cbInput, session, template, 120, false);
-                }
-            } else {
-                notifyUserLoggedIn(random, oAuthUser, cbInput);
+                LOGGER.warn("No user after callback, something must be wrong");
+                return Response.status(Status.NOT_FOUND).build();
             }
+
+            notifyUserLoggedIn(random, oAuthUser, cbInput);
             return Response.ok().build();
         } catch (RuntimeException t) {
             LOGGER.warn("Error while doing callbackFromQiyNode", t);
@@ -313,31 +301,6 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             LOGGER.warn("Error while doing callbackFromQiyNode", t);
             throw new RuntimeException(t);
         }
-    }
-
-    private static void tryLogin(String random, CallbackInput cbInput, HttpSession session, QiyOAuthUser template,
-            int times,
-            boolean errorIfNotLoggedIn) {
-        THREAD_POOL.execute(() -> {
-            OAuthUser loggedIn = null;
-            for (int i = 0; i < times; i++) {
-                try {
-                    Thread.sleep(500);
-                } catch (Exception e) {
-                    LOGGER.warn("Error while doing ", e);
-                    throw new IllegalStateException(e);
-                }
-                loggedIn = OAuthUserService.login(template, session);
-                if (loggedIn != null) {
-                    notifyUserLoggedIn(random, loggedIn, cbInput);
-                    break;
-                }
-            }
-            if (errorIfNotLoggedIn && loggedIn == null) {
-                LOGGER.warn("No logged in user found after callback {}", template.getSubject());
-                eventStreams.write(random, "error", "not logged in after callback");
-            }
-        });
     }
 
     private static void notifyUserLoggedIn(String random, OAuthUser oAuthUser, CallbackInput cbInput) {
