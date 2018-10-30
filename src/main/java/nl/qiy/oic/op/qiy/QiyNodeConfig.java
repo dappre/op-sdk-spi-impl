@@ -71,7 +71,7 @@ public final class QiyNodeConfig {
         this.endpoint = endpoint;
 
         File secretsFile = new File(secretsFilename);
-        LOGGER.info("Using secrets file " + secretsFile.getAbsolutePath());
+        LOGGER.info("Using secrets file {}", secretsFile.getAbsolutePath());
         Map<String, String> secrets = Jackson.newObjectMapper().readValue(secretsFile, Map.class);
 
         Preconditions.checkState(id == null || id.equals(secrets.get("id")),
