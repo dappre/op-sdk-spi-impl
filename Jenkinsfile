@@ -1,4 +1,18 @@
 #!/usr/bin/env groovy
+def libLegacy = [
+    remote:           'ssh://git@code.in.digital-me.nl:2222/DEVops/Jenkins.git',
+    branch:           'stable',
+    credentialsId:    'bot-ci-dgm-rsa',
+]
+
+library(
+    identifier: "libLegacy@${libLegacy.branch}",
+    retriever: modernSCM([
+        $class: 'GitSCMSource',
+        remote: libLegacy.remote,
+        credentialsId: libLegacy.credentialsId
+    ])
+)
 
 def config = updateConfig {
     update = 'micro';             // needs to be set here in the source
