@@ -36,11 +36,12 @@ import java.security.NoSuchProviderException;
 import java.security.ProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -97,7 +98,7 @@ public class QiyNodeClient {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyNodeClient.class);
     private static final ObjectWriter MAP_WRITER = new ObjectMapper().writerFor(HashMap.class);
-    private static Map<String, Object> cardShareData = null;
+    private static List<Map<String, Object>> cardShareData = null;
 
     private static OpSdkSpiImplConfiguration config = null;
     private static Client jaxrsClient = null;
@@ -140,7 +141,16 @@ public class QiyNodeClient {
      *            persistent id for the user
      * @return an initialised QiyNodeClient
      */
-    static QiyNodeClient registerCallback(Map<String, Object> inputConnectToken) {
+    @SuppressWarnings("unchecked")
+    static QiyNodeClient createConnectToken(Map<String, Object> inputConnectToken) {
+        inputConnectToken.merge("actions", cardShareData, (l1, l2) -> {
+            List<Map<String, Object>> result = new ArrayList<>();
+            if (l1 != null)
+                result.addAll((List<Map<String, Object>>) l1);
+            if (l2 != null)
+                result.addAll((List<Map<String, Object>>) l2);
+            return result;
+        });
         byte[] databytes;
         try {
             databytes = MAP_WRITER.writeValueAsBytes(inputConnectToken);
@@ -285,7 +295,7 @@ public class QiyNodeClient {
             Preconditions.checkNotNull(qrConfig, "QRConfig has not been set");
             Preconditions.checkNotNull(qrConfig.width, "QRConfig has no width");
             Preconditions.checkNotNull(qrConfig.height, "QRConfig has no height");
-            
+
             double surface = (double) qrConfig.width * qrConfig.height;
             double errSurface;
 
@@ -305,7 +315,7 @@ public class QiyNodeClient {
             default:
                 throw new IllegalStateException("Unknown error correction" + qrConfig.errorCorrection);
             }
-                
+
             qiyLogoFromSVG(errSurface);
         }
         return qiyLogo;
@@ -319,12 +329,12 @@ public class QiyNodeClient {
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             TranscoderOutput resizedOutput = new TranscoderOutput(baos);
-            
+
             PNGTranscoder pngTranscoder = new PNGTranscoder();
             pngTranscoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, new Float(newDim));
 
             pngTranscoder.transcode(logoInput, resizedOutput);
-            
+
             logoSvgStream.close();
             baos.flush();
 
@@ -518,7 +528,7 @@ public class QiyNodeClient {
                 return;
             }
             @SuppressWarnings("unchecked")
-            URI cardsURI = URI.create((String)((Map<String, Object>)api.get("links")).get("cards"));
+            URI cardsURI = URI.create((String) ((Map<String, Object>) api.get("links")).get("cards"));
             Map<String, Object> cardsWithAttributes = responseForReadCardMessage(cardsURI, "Could not get Cards.");
             if (cardsWithAttributes == null) {
                 // logging will have been done
@@ -536,12 +546,13 @@ public class QiyNodeClient {
             }
             // else get share action for the first card
             @SuppressWarnings("unchecked")
-            URI shareActionUri = URI.create((String)((Map<String, Object>)cards.iterator().next().get("links")).get("shareAction"));
+            URI shareActionUri = URI
+                    .create((String) ((Map<String, Object>) cards.iterator().next().get("links")).get("shareAction"));
             Map<String, Object> shareAction = responseForReadCardMessage(shareActionUri,
                     "Could not get share action " + shareActionUri);
             if (shareAction != null && !shareAction.isEmpty()) {
                 LOGGER.info("updating cardShareData");
-                cardShareData = Collections.unmodifiableMap(shareAction);
+                cardShareData = (List<Map<String, Object>>) shareAction.get("actions");
             }
         } catch (URISyntaxException e) {
             LOGGER.error("Error while doing registerCallback", e);

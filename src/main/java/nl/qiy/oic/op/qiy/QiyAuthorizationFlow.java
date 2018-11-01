@@ -137,7 +137,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         TO_BE_LOGGED_IN.put(random, session);
 
         Map<String, Object> connectToken = createConnectToken(inputs, random);
-        QiyNodeClient client = QiyNodeClient.registerCallback(connectToken);
+        QiyNodeClient client = QiyNodeClient.createConnectToken(connectToken);
         URI notificationUri = getNotificationUrl(random);
         return Response.ok(new QiyConnectTokenRepresentation(client, notificationUri)).build();
     }
@@ -373,7 +373,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
             scheduledThreadPool = Executors.newScheduledThreadPool(1);
             // refresh every 12 hours
             scheduledThreadPool.schedule(() -> QiyNodeClient.readCardMessage(baseDappreURL), 12, TimeUnit.HOURS);
-            scheduledThreadPool.schedule(() -> TO_BE_LOGGED_IN.cleanUp(), 1, TimeUnit.HOURS);
+            scheduledThreadPool.schedule(TO_BE_LOGGED_IN::cleanUp, 1, TimeUnit.HOURS);
         }
         return instance;
     }
