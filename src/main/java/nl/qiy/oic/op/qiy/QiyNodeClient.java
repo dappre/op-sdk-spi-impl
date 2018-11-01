@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -37,7 +35,6 @@ import java.security.ProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +73,6 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
-import nl.qiy.oic.op.api.AuthenticationRequest;
 import nl.qiy.oic.op.service.ConfigurationService;
 import nl.qiy.openid.op.spi.impl.config.CryptoConfig;
 import nl.qiy.openid.op.spi.impl.config.OpSdkSpiImplConfiguration;
@@ -135,23 +131,15 @@ public class QiyNodeClient {
      * Factory method to make sure no client can exists that is in an invalid state. Registering a callback will always
      * be the first thing to do with the client
      * 
-     * @param inputs
-     *            the user's input
-     * @param callbackDef
+     * @param inputConnectToken
      *            all the information needed to let the Node know how to call this OP once the Node has established a
      *            persistent id for the user
-     * @param dappreBaseUrl
-     *            possible null URL where Dappre can be found. If the URI is given and produces a result, this will lead
-     *            to cards being exchanged.
      * @return an initialised QiyNodeClient
      */
-    static QiyNodeClient registerCallback(AuthenticationRequest inputs, Map<String, Object> callbackDef,
-            URL dappreBaseUrl) {
-        Map<String, Object> data = getCardShareData(dappreBaseUrl);
-        data.put("callback", callbackDef);
+    static QiyNodeClient registerCallback(Map<String, Object> inputConnectToken) {
         byte[] databytes;
         try {
-            databytes = MAP_WRITER.writeValueAsBytes(data);
+            databytes = MAP_WRITER.writeValueAsBytes(inputConnectToken);
         } catch (JsonProcessingException e) {
             LOGGER.error("Error while doing registerCallback", e);
             throw new IllegalArgumentException(e);
@@ -165,10 +153,10 @@ public class QiyNodeClient {
                 .request(MediaType.APPLICATION_JSON)
                 .header("password", getConfig().nodeConfig.password)
                 .header(HttpHeaders.AUTHORIZATION, getAuthHeader(databytes))
-                .post(Entity.json(data));
+                .post(Entity.json(inputConnectToken));
             // @formatter:on
         } catch (ProcessingException e) {
-            LOGGER.error("Connection failed {} {}", target, inputs);
+            LOGGER.error("Connection failed {}", target);
             throw e;
         }
         if (response.getStatusInfo().getFamily() == Family.SUCCESSFUL) {
@@ -176,48 +164,10 @@ public class QiyNodeClient {
             return new QiyNodeClient(connectToken);
         }
 
-        LOGGER.warn("Tried to register a callback, which failed. response {}, input {}", inputs, response);
+        LOGGER.warn("Tried to register a callback, which failed. response {}", response);
         throw new IllegalStateException(
                 "Error " + response.getStatus() + " while requesting connect token from " + target);
 
-    }
-
-    /**
-     * As the "card message" will not change, we might as well cache it. Store it as an UnmodifiableMap, from that
-     * create a modifiable copy of the values and return that
-     * 
-     * @param dappreBaseUrl
-     *            from the config
-     * @return see description
-     */
-    static Map<String, Object> getCardShareData(URL dappreBaseUrl) {
-        if (cardShareData == null) {
-            Map<String, Object> data = new HashMap<>();
-            URI cardMsgURI = null;
-            try {
-                cardMsgURI = dappreBaseUrl.toURI().resolve("cardowner/cardmsg?oneWay=true");
-            } catch (URISyntaxException e) {
-                LOGGER.error("Error while doing registerCallback", e);
-                throw new IllegalStateException("Please check your configuration");
-            }
-
-            if (cardMsgURI != null) {
-                Response cardMsgResponse = doGet(cardMsgURI);
-                // @formatter:on
-                if (cardMsgResponse.getStatusInfo().getFamily() == Status.Family.SUCCESSFUL) {
-                    data = cardMsgResponse.readEntity(HashMap.class);
-                } else {
-                    LOGGER.error("error {} ({}) while invoking: {} . Continuing", cardMsgResponse.getStatus(),
-                            cardMsgResponse.getStatusInfo(), cardMsgURI);
-                }
-            } else {
-                LOGGER.debug("no cardMsgURI set, so only logging in");
-            }
-            cardShareData = Collections.unmodifiableMap(data);
-        }
-        Map<String, Object> result = new HashMap<>();
-        result.putAll(cardShareData);
-        return result;
     }
 
     public static String getAuthHeader(byte[] data) {

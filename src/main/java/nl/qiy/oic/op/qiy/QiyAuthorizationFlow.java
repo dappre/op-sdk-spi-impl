@@ -23,8 +23,11 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URL;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -37,6 +40,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -132,11 +136,8 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         String random = getTBLIRandom();
         TO_BE_LOGGED_IN.put(random, session);
 
-        // FIXME optionally listen for events, should only happen in a way that only allows for a dev setup
-        // QiyNodeClient.listen(uri, evtConsumer);
-
-        Map<String, Object> callbackDef = getCallbackDefinition(inputs, random);
-        QiyNodeClient client = QiyNodeClient.registerCallback(inputs, callbackDef, baseDappreUrl);
+        Map<String, Object> connectToken = createConnectToken(inputs, random);
+        QiyNodeClient client = QiyNodeClient.registerCallback(connectToken);
         URI notificationUri = getNotificationUrl(random);
         return Response.ok(new QiyConnectTokenRepresentation(client, notificationUri)).build();
     }
@@ -149,14 +150,21 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      * @param random
      * @return see description
      */
-    private static Map<String, Object> getCallbackDefinition(AuthenticationRequest inputs, String random) {
-        Map<String, Object> callbackDef = new HashMap<>();
-        String callbackUri = getCallbackUri(random);
-        callbackDef.put("uri", callbackUri);
-        callbackDef.put("method", "POST");
-        callbackDef.put("type", MediaType.APPLICATION_JSON);
-        callbackDef.put("body", inputs.toBytes());
-        return callbackDef;
+    private static Map<String, Object> createConnectToken(AuthenticationRequest inputs, String random) {
+        Map<String, Object> connectToken = new HashMap<>();
+        List<Map<String, Object>> actionsActions = new ArrayList<>();
+        connectToken.put("actions", actionsActions);
+
+        HashMap<String, Object> callBackAction = new HashMap<>();
+        callBackAction.put("key", "callback");
+        callBackAction.put("uri", getCallbackUri(random));
+        callBackAction.put("method", "POST");
+        callBackAction.put("type", MediaType.APPLICATION_OCTET_STREAM);
+        callBackAction.put("body", Base64.getEncoder().encodeToString(inputs.toBytes()));
+
+        actionsActions.add(callBackAction);
+
+        return connectToken;
     }
 
     /**
@@ -270,16 +278,23 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      * @param random
      *            the random value that was used in {@link #startFlow(AuthenticationRequest, HttpSession)} to register
      *            this login attempt
-     * @param cbInput
+     * @param pid
+     *            the persistent ID of the connection
+     * @param connectionUri
+     *            the URI of the connection that was created
+     * @param cbi
      *            the input we said we'd like to receive
      * @return Normally a 200 (OK) response to signal to the router (who made this request) that the content was
      *         received in working order
      */
     @Path("callback/{random}")
     @POST
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Consumes({ MediaType.APPLICATION_OCTET_STREAM, MediaType.WILDCARD })
     @SuppressWarnings("ucd")
-    public static Response callbackFromQiyNode(@PathParam("random") String random, CallbackInput cbInput) {
+    public static Response callbackFromQiyNode(@PathParam("random") String random, @HeaderParam("qiy-pid") String pid,
+            @HeaderParam("qiy-connection") String connectionUri, byte[] cbi) {
+
+        CallbackInput cbInput = new CallbackInput(pid, connectionUri, cbi);
         try {
             LOGGER.debug("Callback from Qiy node invoked for random {}", random);
             HttpSession session = TO_BE_LOGGED_IN.getIfPresent(random);

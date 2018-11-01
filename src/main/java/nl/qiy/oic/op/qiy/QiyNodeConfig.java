@@ -26,10 +26,10 @@ import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Map;
 
+import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
@@ -56,7 +56,7 @@ public final class QiyNodeConfig {
     public final String endpoint;
     @NotNull
     public final PrivateKey privateKey;
-    @NotNull
+    @Nullable
     public final PublicKey publicKey;
     @NotEmpty
     public final String password;
@@ -81,10 +81,10 @@ public final class QiyNodeConfig {
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         byte[] keyBytes = Base64.getDecoder().decode(secrets.get("privateKey"));
         this.privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
-        LOGGER.debug("private key set");
-        keyBytes = Base64.getDecoder().decode(secrets.get("publicKey"));
-        this.publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(keyBytes));
-        LOGGER.debug("public key set");
+        // LOGGER.debug("private key set");
+        // keyBytes = Base64.getDecoder().decode(secrets.get("publicKey"));
+        this.publicKey = null; // keyFactory.generatePublic(new X509EncodedKeySpec(keyBytes));
+        // LOGGER.debug("public key set");
         this.password = secrets.get("nodePassword");
         LOGGER.debug("password set {}", this.password != null);
     }
@@ -106,7 +106,7 @@ public final class QiyNodeConfig {
         this.id = id;
         this.password = password;
         this.privateKey = privateKey;
-        this.publicKey = publicKey;
+        this.publicKey = null; // publicKey;
         this.endpoint = endpoint;
     }
 
