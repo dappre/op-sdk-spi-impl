@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -34,9 +36,12 @@ import java.security.NoSuchProviderException;
 import java.security.ProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -93,7 +98,7 @@ public class QiyNodeClient {
      */
     private static final Logger LOGGER = LoggerFactory.getLogger(QiyNodeClient.class);
     private static final ObjectWriter MAP_WRITER = new ObjectMapper().writerFor(HashMap.class);
-    private static Map<String, Object> cardShareData = null;
+    private static List<Map<String, Object>> cardShareData = null;
 
     private static OpSdkSpiImplConfiguration config = null;
     private static Client jaxrsClient = null;
@@ -136,7 +141,16 @@ public class QiyNodeClient {
      *            persistent id for the user
      * @return an initialised QiyNodeClient
      */
-    static QiyNodeClient registerCallback(Map<String, Object> inputConnectToken) {
+    @SuppressWarnings("unchecked")
+    static QiyNodeClient createConnectToken(Map<String, Object> inputConnectToken) {
+        inputConnectToken.merge("actions", cardShareData, (l1, l2) -> {
+            List<Map<String, Object>> result = new ArrayList<>();
+            if (l1 != null)
+                result.addAll((List<Map<String, Object>>) l1);
+            if (l2 != null)
+                result.addAll((List<Map<String, Object>>) l2);
+            return result;
+        });
         byte[] databytes;
         try {
             databytes = MAP_WRITER.writeValueAsBytes(inputConnectToken);
@@ -167,7 +181,6 @@ public class QiyNodeClient {
         LOGGER.warn("Tried to register a callback, which failed. response {}", response);
         throw new IllegalStateException(
                 "Error " + response.getStatus() + " while requesting connect token from " + target);
-
     }
 
     public static String getAuthHeader(byte[] data) {
@@ -282,7 +295,7 @@ public class QiyNodeClient {
             Preconditions.checkNotNull(qrConfig, "QRConfig has not been set");
             Preconditions.checkNotNull(qrConfig.width, "QRConfig has no width");
             Preconditions.checkNotNull(qrConfig.height, "QRConfig has no height");
-            
+
             double surface = (double) qrConfig.width * qrConfig.height;
             double errSurface;
 
@@ -302,7 +315,7 @@ public class QiyNodeClient {
             default:
                 throw new IllegalStateException("Unknown error correction" + qrConfig.errorCorrection);
             }
-                
+
             qiyLogoFromSVG(errSurface);
         }
         return qiyLogo;
@@ -316,12 +329,12 @@ public class QiyNodeClient {
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             TranscoderOutput resizedOutput = new TranscoderOutput(baos);
-            
+
             PNGTranscoder pngTranscoder = new PNGTranscoder();
             pngTranscoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, new Float(newDim));
 
             pngTranscoder.transcode(logoInput, resizedOutput);
-            
+
             logoSvgStream.close();
             baos.flush();
 
@@ -501,6 +514,63 @@ public class QiyNodeClient {
             nodeApiInfo = get(uri, Map.class);
         }
         return nodeApiInfo;
+    }
+
+    /**
+     * @param baseDappreURL
+     */
+    public static void readCardMessage(URL baseDappreURL) {
+        try {
+            URI cardApiURI = baseDappreURL.toURI().resolve("api");
+            Map<String, Object> api = responseForReadCardMessage(cardApiURI, "Could not get CardAPI information.");
+            if (api == null) {
+                // logging will have been done
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            URI cardsURI = URI.create((String) ((Map<String, Object>) api.get("links")).get("cards"));
+            Map<String, Object> cardsWithAttributes = responseForReadCardMessage(cardsURI, "Could not get Cards.");
+            if (cardsWithAttributes == null) {
+                // logging will have been done
+                return;
+            }
+
+            @SuppressWarnings("unchecked")
+            Collection<Map<String, Object>> cards = (Collection<Map<String, Object>>) cardsWithAttributes.get("cards");
+            if (cards.isEmpty()) {
+                LOGGER.error("No cards defined.");
+                if (cardShareData == null) {
+                    LOGGER.error("cardShareData is still null!");
+                }
+                return;
+            }
+            // else get share action for the first card
+            @SuppressWarnings("unchecked")
+            URI shareActionUri = URI
+                    .create((String) ((Map<String, Object>) cards.iterator().next().get("links")).get("shareAction"));
+            Map<String, Object> shareAction = responseForReadCardMessage(shareActionUri,
+                    "Could not get share action " + shareActionUri);
+            if (shareAction != null && !shareAction.isEmpty()) {
+                LOGGER.info("updating cardShareData");
+                cardShareData = (List<Map<String, Object>>) shareAction.get("actions");
+            }
+        } catch (URISyntaxException e) {
+            LOGGER.error("Error while doing registerCallback", e);
+            throw new IllegalStateException("Please check your configuration");
+        }
+    }
+
+    private static Map<String, Object> responseForReadCardMessage(URI uri, String message) {
+        Response apiResponse = doGet(uri);
+        if (apiResponse.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+            LOGGER.error("{} Status {}", message, apiResponse.getStatus());
+            if (cardShareData == null) {
+                LOGGER.error("cardShareData is still null!");
+            }
+            return null;
+        }
+
+        return apiResponse.readEntity(HashMap.class);
     }
 
 }

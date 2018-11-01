@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
@@ -95,9 +97,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
 
     private static UriBuilder notificationUriBuilder;
     private static UriBuilder callbackUriBuilder;
-
-    // possibly null, if we're only after login and not concerned about sharing cards
-    private static URL baseDappreUrl;
+    private static ScheduledExecutorService scheduledThreadPool;
 
     private static class StartFlowCombiner implements BinaryOperator<Response> {
         /**
@@ -137,7 +137,7 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
         TO_BE_LOGGED_IN.put(random, session);
 
         Map<String, Object> connectToken = createConnectToken(inputs, random);
-        QiyNodeClient client = QiyNodeClient.registerCallback(connectToken);
+        QiyNodeClient client = QiyNodeClient.createConnectToken(connectToken);
         URI notificationUri = getNotificationUrl(random);
         return Response.ok(new QiyConnectTokenRepresentation(client, notificationUri)).build();
     }
@@ -366,9 +366,14 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      */
     public static QiyAuthorizationFlow getInstance(URL baseDappreURL) {
         if (instance == null) {
-            baseDappreUrl = baseDappreURL;
+            QiyNodeClient.readCardMessage(baseDappreURL);
             instance = new QiyAuthorizationFlow();
             eventStreams = ServerSentEventStreams.getInstance();
+
+            scheduledThreadPool = Executors.newScheduledThreadPool(1);
+            // refresh every 12 hours
+            scheduledThreadPool.schedule(() -> QiyNodeClient.readCardMessage(baseDappreURL), 12, TimeUnit.HOURS);
+            scheduledThreadPool.schedule(TO_BE_LOGGED_IN::cleanUp, 1, TimeUnit.HOURS);
         }
         return instance;
     }
