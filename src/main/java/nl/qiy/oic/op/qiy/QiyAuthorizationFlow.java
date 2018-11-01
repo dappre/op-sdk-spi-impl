@@ -366,12 +366,12 @@ public class QiyAuthorizationFlow implements AuthorizationFlow {
      */
     public static QiyAuthorizationFlow getInstance(URL baseDappreURL) {
         if (instance == null) {
+            scheduledThreadPool = Executors.newScheduledThreadPool(1);
             // might take too long for the deployment script, so don't wait for it
             scheduledThreadPool.schedule(() -> QiyNodeClient.readCardMessage(baseDappreURL), 1, TimeUnit.MILLISECONDS);
             instance = new QiyAuthorizationFlow();
             eventStreams = ServerSentEventStreams.getInstance();
 
-            scheduledThreadPool = Executors.newScheduledThreadPool(1);
             // refresh every 12 hours
             scheduledThreadPool.scheduleAtFixedRate(() -> QiyNodeClient.readCardMessage(baseDappreURL), 12, 12,
                     TimeUnit.HOURS);
